@@ -95,7 +95,7 @@ Finance::QuoteHist::SiliconInvestor - Site-specific class for retrieving histori
      (
       symbols    => [qw(IBM UPS AMZN)],
       start_date => '01/01/1999',
-      end_date   => 'today',      
+      end_date   => 'today',
      );
 
   foreach $row ($q->quotes()) {

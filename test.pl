@@ -6,7 +6,7 @@
 # Change 1..1 below to 1..last_test_to_print .
 # (It may become useful if the test is moved to ./t subdirectory.)
 
-BEGIN { $| = 1; print "1..2\n"; }
+BEGIN { $| = 1; print "1..5\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Finance::QuoteHist;
 $loaded = 1;
@@ -18,28 +18,90 @@ print "ok 1\n";
 # (correspondingly "not ok 13") depending on the success of chunk 13
 # of the test code):
 
-$pass = 1;
+$pcount = 2;
+
+{
+  local $/;
+  my @chunks = split(/\n\n+/, <DATA>);
+  @quotes    = split(/\n/, $chunks[0]);
+  @splits    = split(/\n/, $chunks[1]);
+  @dividends = split(/\n/, $chunks[2]);
+}
+
+($qsym, $qstart, $qend) = split(',', shift @quotes);
+($ssym, $sstart, $send) = split(',', shift @splits);
+($dsym, $dstart, $dend) = split(',', shift @dividends);
+
+$ok = 1;
 $q = Finance::QuoteHist->new(
-				symbols    => [ '^DJA' ],
-				start_date => '11/01/1997',
-				end_date   => '02/28/1998',
+			     symbols    => $qsym,
+			     start_date => $qstart,
+			     end_date   => $qend,
 			    );
 @rows = $q->quotes;
-chomp($tcount = <DATA>);
-@trows = <DATA>;
-chomp @trows;
-$pass = 0 unless $tcount == $#rows;
+$ok = 0 unless $#quotes == $#rows;
 foreach (0 .. $#rows) {
-   if (join(':', @{$rows[$_]}) ne $trows[$_]) {
-      $pass = 0;
-      last;
+   if (join(':', @{$rows[$_]}) ne $quotes[$_]) {
+     $ok = 0;
+     last;
    }
 }
-print $pass ? "ok" : "not ok";
-print " 2 (basic fetch)\n";
+print $ok ? "ok" : "not ok";
+print " $pcount (direct quotes)\n";
+++$pcount;
+
+$ok = 1;
+$q = Finance::QuoteHist->new(
+			     symbols    => $ssym,
+			     start_date => $sstart,
+			     end_date   => $send,
+			    );
+@rows = $q->splits;
+$ok = 0 unless $#splits == $#rows;
+foreach (0 .. $#rows) {
+  if (join(':', @{$rows[$_]}) ne $splits[$_]) {
+    $ok = 0;
+    last;
+  }
+}
+print $ok ? "ok" : "not ok";
+print " $pcount (filtered splits)\n";
+++$pcount;
+
+# Use the same quote object here to test filtered divs.
+$ok = 1;
+@rows = $q->dividends;
+$ok = 0 unless $#dividends == $#rows;
+foreach (0 .. $#rows) {
+  if (join(':', @{$rows[$_]}) ne $dividends[$_]) {
+    $ok = 0;
+    last;
+  }
+}
+print $ok ? "ok" : "not ok";
+print " $pcount (filtered dividends)\n";
+++$pcount;
+
+$ok = 1;
+$q = Finance::QuoteHist->new(
+			     symbols    => $dsym,
+			     start_date => $dstart,
+			     end_date   => $dend,
+			    );
+@rows = $q->dividends;
+$ok = 0 unless $#dividends == $#rows;
+foreach (0 .. $#rows) {
+  if (join(':', @{$rows[$_]}) ne $dividends[$_]) {
+    $ok = 0;
+    last;
+  }
+}
+print $ok ? "ok" : "not ok";
+print " $pcount (direct dividends)\n";
+++$pcount;
 
 __END__
-79
+^DJA,11/01/1997,02/28/1998
 ^DJA:1997/11/03:2484.6000:2521.1000:2461.1000:2509.0000:5647400
 ^DJA:1997/11/04:2494.5000:2530.4000:2478.2000:2510.8000:5415900
 ^DJA:1997/11/05:2504.2000:2541.4000:2489.6000:2512.4000:5656800
@@ -120,3 +182,10 @@ __END__
 ^DJA:1998/02/25:2745.6000:2766.4000:2714.0000:2745.1000:6113500
 ^DJA:1998/02/26:2744.5000:2768.2000:2708.5000:2743.9000:6462800
 ^DJA:1998/02/27:2745.1000:2772.2000:2715.8000:2746.3000:5744800
+
+INTC,01/01/1997,01/01/1998
+INTC:1997/07/14:2:1
+
+INTC,01/01/1997,01/01/1998
+INTC:1997/04/29:0.050000
+INTC:1997/10/29:0.030000

@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.24';
+$VERSION = '0.25';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -18,6 +18,8 @@ use Date::Manip;
 # Example for CSV output:
 #
 # http://table.finance.yahoo.com/table.csv?a=1&b=1&c=1999&d=3&e=1&f=2000&s=sfa&y=0&g=d
+#
+# Note that Yahoo implements month numbering with Jan=0 and Dec=11.
 #
 # For CSV output, date ranges are unlimited; the output is adjusted
 # and does not include any split or dividend notices.
@@ -85,10 +87,8 @@ sub splits {
   my $self = shift;
   my $ost = $self->source_type;
   $self->source_type('html');
-#  $self->quote_get;
   my $rows = $self->SUPER::splits(@_);
   $self->source_type($ost ? $ost : 0);
-#  $self->extraction('split');
   wantarray ? @$rows : $rows;
 }
 
@@ -213,7 +213,7 @@ sub dividend_extract {
   croak "row as array ref required\n" unless ref $row;
   # Use the current label map since we're an extractor
   my $date_column = $self->target_label_map->{date};
-  
+
   # This is a munge...not sure how to abstract this column.
   # (it might not be the same column as a direct query)
   my $div_column  = 1;
@@ -253,13 +253,14 @@ sub source_type {
   # Force our souce data type (HTML/CSV). If unspecified, we pick the
   # quickest and most appropriate based on parameters. Sometimes we
   # might want to force HTML mode, though.
-  my($self, $type) = @_;
-  if (defined $type) {
+  my $self = shift;
+  if (@_) {
+    my $type = shift;
     if ($type eq 'html' || $type eq 'csv') {
       $self->{source_type} = $type;
     }
-    elsif ($type == 0) {
-      $self->{source_type} = '';
+    elsif (!$type) {
+      $self->{source_type} = undef;
     }
     else {
       croak "Unknown source type ($type)\n";
@@ -309,7 +310,7 @@ Finance::QuoteHist::Yahoo - Site-specific subclass for retrieving historical sto
      (
       symbols    => [qw(IBM UPS AMZN)],
       start_date => '01/01/1999',
-      end_date   => 'today',      
+      end_date   => 'today',
      );
 
   # Adjusted values
@@ -480,13 +481,12 @@ acquired elsewhere.
 In the case of Yahoo, as of September 13, 2000, their statement reads,
 in part:
 
-    Historical chart data and daily updates provided by
-    Commodity Systems, Inc. (CSI). Data and information is 
-    provided for informational purposes only, and is not
-    intended for trading purposes. Neither Yahoo nor any of
-    its data or content providers (such as CSI) shall be
-    liable for any errors or delays in the content, or for
-    any actions taken in reliance thereon.
+ Historical chart data and daily updates provided by Commodity
+ Systems, Inc. (CSI). Data and information is provided for
+ informational purposes only, and is not intended for trading
+ purposes. Neither Yahoo nor any of its data or content providers
+ (such as CSI) shall be liable for any errors or delays in the
+ content, or for any actions taken in reliance thereon.
 
 If you would like to know more, check out where this statement was
 found:

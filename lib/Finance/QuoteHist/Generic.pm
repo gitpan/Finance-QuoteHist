@@ -10,7 +10,7 @@ use HTTP::Request;
 use Date::Manip;
 use HTML::TableExtract;
 
-$VERSION = '0.21';
+$VERSION = '0.22';
 
 my @Default_Quote_Labels    = qw( Date Open High Low Close Vol );
 my @Default_Dividend_Labels = qw( Date Div );
@@ -86,6 +86,7 @@ sub new {
 
   $self->{ua} = new LWP::UserAgent;
   $self->{ua}->env_proxy() if $parms{env_proxy};
+
   $self->start_date($start_date);
   $self->end_date($end_date);
   $self->symbols(@$symbols);
@@ -93,7 +94,7 @@ sub new {
   # These are used for constructing method names for target types.
   $self->{target_order} = [qw(quote split dividend)];
   grep($self->{targets}{$_} = "${_}s", @{$self->{target_order}});
-  
+
   # Register our parsers. HTML by default.
   $self->parse_method('html', 'html_table_parser');
   $self->parse_method('csv', 'csv_parser');
@@ -246,7 +247,8 @@ sub fetch {
   }
   $self->{_lwp_success} = $response->is_success;
   return undef unless $response->is_success;
-  print STDERR "Fetch complete.\n" if $self->{verbose};
+  print STDERR 'Fetch complete. (' . length($response->content) . " chars)\n"
+    if $self->{verbose};
   $response->content;
 }
 
@@ -355,7 +357,7 @@ sub target_get {
 	    my $em = "${mode}_extract";
 	    if ($erow = $self->$em($row)) {
 	      print STDERR "$s extract ($mode) got $s, ",
-	         join(', ', @$erow), "\n";
+	         join(', ', @$erow), "\n" if $self->{verbose};
 	      if ($mode ne $target) {
 		push(@{$extractions{$mode}}, [@$erow]);
 		++$ecount;
@@ -389,15 +391,15 @@ sub target_get {
       # Normalization. Saving the rounding operations until after the
       # adjust routine is deliberate since we don't want to be
       # auto-adjusting pre-rounded numbers.
-      $self->date_normalize($rows);
-      $self->number_normalize($rows);
+      $self->date_normalize_rows($rows);
+      $self->number_normalize_rows($rows);
 
       # Do the same for the extraction rows
       foreach (keys %extractions) {
 	my $ct = $self->{current_target};
 	$self->{current_target} = $_;
-	$self->date_normalize($extractions{$_});
-	$self->number_normalize($extractions{$_});
+	$self->date_normalize_rows($extractions{$_});
+	$self->number_normalize_rows($extractions{$_});
 	$self->{current_target} = $ct;
 
 	# store in the background
@@ -522,7 +524,7 @@ sub target_get {
     print STDERR "Class ", ref $self, " returning ", scalar @rows,
        " composite rows.\n";
   }
-  
+
   # Cache
   $self->{extracts}{$target} = \@rows;
 
@@ -560,7 +562,7 @@ sub rows {
   my @date_rows;
   my $dcol = $self->target_label_map->{date};
   my $r;
-  while($r= pop @$rows) {
+  while($r = pop @$rows) {
     my $date = $self->date_in_range($r->[$dcol]);
     next unless $date;
     $r->[$dcol] = $date;
@@ -638,26 +640,31 @@ sub adjust {
       $row->[$labelmap->{$_}] = $row->[$labelmap->{$_}]/$rat;
     }
     # volume is multiplied by the ratio
-    $row->[$labelmap->{volume}] = $row->[$labelmap->{volume}] *= $rat;
+    $row->[$labelmap->{vol}] *= $rat;
   }
   $rows;
 }
 
 ### Bulk manipulation filters
 
-sub date_normalize {
+sub date_normalize_rows {
   # Place dates into a consistent format, courtesy of Date::Manip
   my($self, $rows) = @_;
   my $dcol = $self->target_label_map->{date};
   foreach my $row (@$rows) {
-    my $d = ParseDate($row->[$dcol]);
-    next unless $d;
-    $row->[$dcol] = join('/', $self->ymd($d));
+    $row->[$dcol] = $self->date_normalize($row->[$dcol]);
   }
   $rows;
 }
 
-sub number_normalize {
+sub date_normalize {
+  my($self, $date) = @_;
+  return unless $date;
+  my $d = ParseDate($date);
+  join('/', $self->ymd($d));
+}
+
+sub number_normalize_rows {
   # Strip non-numeric noise from numeric fields
   my($self, $rows) = @_;
   my $labelmap = $self->target_label_map;
@@ -766,12 +773,14 @@ sub label_map {
   @labels or croak "Label list required\n";
   @labels = map(lc $_, @labels);
   my $lpat = join('|', @labels);
+  $lpat = qr/$lpat/;
 
   # Current target labels (these are our referrent for normalizing
   # keys of the labelmap)
   my $lmethod = $self->labels_method;
   my @clabels  = map(lc $_, $self->$lmethod());
   my $clpat    = join('|', @clabels);
+  $clpat = qr/$clpat/;
 
   if (!$self->{labelcache}{$lpat}) {
     # Normalize. If it's an oddball just use the unaltered label as
@@ -956,7 +965,7 @@ sub start_date {
   my($self, $start_date) = @_;
   if ($start_date) {
     $self->clear_cache;
-    $self->{start_date} = $start_date;
+    $self->{start_date} = $self->date_standardize($start_date);
   }
   $self->{start_date};
 }
@@ -965,9 +974,19 @@ sub end_date {
   my($self, $end_date) = @_;
   if ($end_date) {
     $self->clear_cache;
-    $self->{end_date} = $end_date;
+    $self->{end_date} = $self->date_standardize($end_date);
   }
   $self->{end_date};
+}
+
+sub date_standardize {
+  my($self, @dates) = @_;
+  return unless @dates;
+  foreach (@dates) {
+    $_ = ParseDate($_) or croak "Could not parse date '$_'\n";
+    s/\d\d:.*//;
+  }
+  @dates > 1 ? @dates : ($dates[0]);
 }
 
 sub mydates {
@@ -978,19 +997,13 @@ sub mydates {
 sub dates {
   my($self, $sdate, $edate) = @_;
   $sdate && $edate or croak "Start date and end date strings required\n";
-  my $sd = ParseDate($sdate) or croak "Could not parse start date $sdate\n";
-  my $ed = ParseDate($edate) or croak "Could not parse end date $edate\n";
-  ($sd, $ed) = sort($sd, $ed);
-  $sd =~ s/\d\d:.*//;
-  $ed =~ s/\d\d:.*//;
+  my($sd, $ed) = sort($self->date_standardize($sdate, $edate));
   my @dates;
   push(@dates, $sd) if Date_IsWorkDay($sd);
-  my $cd = Date_NextWorkDay($sd, 1);
-  $cd =~ s/\d\d:.*//;
+  my $cd = $self->date_standardize(Date_NextWorkDay($sd, 1));
   while ($cd <= $ed) {
     push(@dates, $cd);
-    $cd = Date_NextWorkDay($cd);
-    $cd =~ s/\d\d:.*//;
+    $cd = $self->date_standardize(Date_NextWorkDay($cd));
   }
   @dates;
 }

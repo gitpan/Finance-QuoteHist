@@ -8,9 +8,9 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '0.29';
+$VERSION = '0.30';
 
-my @DEFAULT_ENGINES = qw(
+our @DEFAULT_ENGINES = qw(
 			 Finance::QuoteHist::Yahoo
 			 Finance::QuoteHist::WallStreetCity
 			 Finance::QuoteHist::SiliconInvestor
@@ -33,7 +33,7 @@ sub new {
   # Instantiate the first, pass the rest as champions to the first
   my $first = shift @{$parms{lineup}};
 
-  eval "require $first;";
+  eval "require $first";
   croak $@ if $@;
 
   my $self = $first->new(%parms);
@@ -51,11 +51,11 @@ Finance::QuoteHist - Perl module for fetching historical stock quotes.
 =head1 SYNOPSIS
 
   use Finance::QuoteHist;
-  $q = new Finance::QuoteHist
+  $q = Finance::QuoteHist->new
      (
       symbols    => [qw(IBM UPS AMZN)],
       start_date => '01/01/1999',
-      end_date   => 'today',      
+      end_date   => 'today',
      );
 
   # Adjusted values

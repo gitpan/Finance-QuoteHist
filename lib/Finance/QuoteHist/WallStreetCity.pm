@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -76,7 +76,7 @@ Finance::QuoteHist::WallStreetCity - Site-specific class for retrieving historic
      (
       symbols    => [qw(IBM UPS AMZN)],
       start_date => '01/01/1999',
-      end_date   => 'today',      
+      end_date   => 'today',
      );
 
   foreach $row ($q->quotes()) {
@@ -88,15 +88,15 @@ Finance::QuoteHist::WallStreetCity - Site-specific class for retrieving historic
 
 Finance::QuoteHist::WallStreetCity is a subclass of
 Finance::QuoteHist::Generic, specifically tailored to read historical
-quotes from the Wall Street City web site (I<http://www.wallstreetcity.com/>). Wall
-Street City does not currently supply information on dividend distributions
-or splits.
+quotes from the Wall Street City web site
+(I<http://www.wallstreetcity.com/>). Wall Street City does not
+currently supply information on dividend distributions or splits.
 
-At the time of this writing, Wall Street City did not appear to have any
-limits on query results, so only a single URL is required. The
-C<quote_urls()> method provides the URL necessary given the date
-range and symbol. This URL is automatically utilized by the native
-methods of Finance::QuoteHist::Generic.
+At the time of this writing, Wall Street City did not appear to have
+any limits on query results, so only a single URL is required. The
+C<quote_urls()> method provides the URL necessary given the date range
+and symbol. This URL is automatically utilized by the native methods
+of Finance::QuoteHist::Generic.
 
 Please see L<Finance::QuoteHist::Generic(3)> for more details on usage
 and available methods. If you just want to get historical quotes and
@@ -140,16 +140,15 @@ statement reads, in part:
 
  You may store in the memory of your computer and may manipulate,
  analyze, reformat, printed and/or display for your use only the
- information received or accessed through the Telescan System
- pursuant to this Subscriber Agreement.  You may not resell,
- redistribute, broadcast or transfer the information or use the
- information in a searchable, machine-readable database.  Unless
- separately and specifically authorized in writing by an officer
- of Telescan, you may not rent, lease, sublicense, distribute,
- transfer, copy, reproduce, publicly display, publish, adapt, store
- or time-share the Telescan System, any part thereof, or any of the
- information received or accessed therefrom to or through any other
- person or entity.
+ information received or accessed through the Telescan System pursuant
+ to this Subscriber Agreement.  You may not resell, redistribute,
+ broadcast or transfer the information or use the information in a
+ searchable, machine-readable database.  Unless separately and
+ specifically authorized in writing by an officer of Telescan, you may
+ not rent, lease, sublicense, distribute, transfer, copy, reproduce,
+ publicly display, publish, adapt, store or time-share the Telescan
+ System, any part thereof, or any of the information received or
+ accessed therefrom to or through any other person or entity.
 
 
 There you have it. If you feel like you might have concerns with this
