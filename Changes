@@ -1,5 +1,8 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+0.31 Thu Jan 16 19:20:31 GMT 2003
+  - Rolled back some 5.6 specific syntax
+
 0.30 Fri Nov  8 16:47:07 EST 2002
   - adjusted volume fix (column labeling snafu)
   - extraneous status messages fixed for split extrations
@@ -52,4 +55,3 @@ Revision history for Perl extension Finance::QuoteHist.
 
 0.01  Wed Feb  2 18:24:07 CST 2000
   - Initial version.
-
