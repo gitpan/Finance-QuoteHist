@@ -1,5 +1,24 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+0.21  Wed Sep 13 13:25:35 CDT 2000
+	- Splits and dividends added
+	- Much faster queries, primarily due to taking
+	  advantage of Yahoo and CSV-formatted data,
+          when available
+	- Supports grabbing non-adjusted data, as well
+	  as notification when transitioning to a site
+	  that cannot provide non-adjusted data
+	- Supports auto-adjusting of non-adjusted
+	  quotes for tables that include an adjusted
+	  column (like Yahoo in HTML mode)
+	- Information pedigree support -- i.e., from
+	  which site did the quote/split/dividend data
+	  come for a particular ticker symbol
+	- Revised interface, although the old one is
+	  mostly still supported (read the docs!)
+	- Defunct ticker symbols still supported
+	  (quotes only, no split/dividend)
+
 0.01  Wed Feb  2 18:24:07 CST 2000
 	- Initial version.
 
