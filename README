@@ -1,0 +1,81 @@
+Finance-QuoteHist 
+-----------------
+
+The Finance-QuoteHist bundle is several modules designed to fetch
+historical stock quotes from the web: 
+  
+Finance::QuoteHist
+------------------
+Top level aggregator that will select a default lineup of
+site instances from which to retrieve quotes. Other
+than the default lineup, this module behaves identically
+to whichever site-specific module is first in the lineup.
+See below for site-specific modules. 
+
+Finance::QuoteHist::Generic
+---------------------------
+The real workhorse of the bundle, a sub class of
+LWP::UserAgent. Site-specific modules are sub classes
+of this module.
+
+Finance::QuoteHist::MotleyFool
+------------------------------
+Specific instance of the Generic module tailored for the
+Motley Fool website.
+
+Finance::QuoteHist::FinancialWeb
+--------------------------------
+Specific instance of the Generic module tailored for the
+FinancialWeb site.
+
+INSTALLATION
+
+You install HTML-Element-Extended, as you would install any perl library,
+by running these commands:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+DOCUMENTATION
+
+POD style documentation is included with each module. This is normally
+converted to a manual page and installed as part of the "make install"
+process. You should also be able to use the 'perldoc' utility to
+extract and read documentation from the module file directly.  See
+Changes for recent changes.
+
+SUPPORT
+
+Questions and comments should be directed to Matt Sisk <sisk@mojotoad.com>
+
+AVAILABILITY
+
+The library is available from CPAN:
+
+   http://www.cpan.org/authors/id/M/MS/MSISK/
+
+The latest version is also available at:
+
+   http://www.mojotoad.com/sisk/projects/Finance-QuoteHist/
+
+DISCLAIMER 
+
+The data returned from these modules is in no way guaranteed, nor
+are the developers responsible in any way for how this data (or lack
+thereof) is used. The interface is based on URLs and page layouts
+that might change at any time. Even though these modules are designed
+to be adaptive under these circumstances, they will at some point
+probably be unable to retrieve data unless fixed or provided with new
+parameters. Furthermore, the data from these web sites is usually not
+even guaranteed by the web sites themselves, and oftentimes is
+acquired elsewhere. See the documentation for each site-specific
+module for more information regarding the disclaimer for that site. 
+
+COPYRIGHT
+
+Copyright (c) 1999-2000 Matthew P. Sisk.  All rights reserved.
+All wrongs revenged. This program is free software; you can
+redistribute it and/or modify it under the same terms as
+Perl itself.

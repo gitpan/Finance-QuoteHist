@@ -1,0 +1,9 @@
+README
+Changes
+MANIFEST
+Makefile.PL
+test.pl
+lib/Finance/QuoteHist.pm
+lib/Finance/QuoteHist/Generic.pm
+lib/Finance/QuoteHist/MotleyFool.pm
+lib/Finance/QuoteHist/FinancialWeb.pm
