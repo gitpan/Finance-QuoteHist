@@ -224,7 +224,7 @@ sub auspice {
 }
 
 sub fetch {
-  # HTTP::Request Wranger
+  # HTTP::Request Wrangler
   my $self = shift;
   my $mode = shift;
   $mode or croak "Request mode required\n";

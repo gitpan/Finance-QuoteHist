@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.21';
+$VERSION = '0.22';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -280,6 +280,14 @@ sub csv_parser {
     delete $self->{_yahoo_div_fix};
   }
   $self->SUPER::csv_parser($csv_string, @_);
+}
+
+sub clear_cache {
+  # source_type() is a cache, as well as a signal. Make sure and clear
+  # it with the rest of the caches.
+  my $self = shift;
+  $self->source_type(0);
+  $self->SUPER::clear_cache(@_);
 }
 
 1;
