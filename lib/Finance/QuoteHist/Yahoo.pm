@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.25';
+$VERSION = '0.26';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -269,23 +269,7 @@ sub source_type {
   $self->{source_type};
 }
 
-### Ugly overrides
-
-sub csv_parser {
-  # Nasty hack. Yahoo provides regular CSV data for quotes, but for
-  # dividends the headers use a comma and the data use a space as the
-  # separator. At least this won't break anything if Yahoo suddenly
-  # decides to fix their dividend CSV data.
-  my $self = shift;
-  my $csv_string = shift;
-  # Our warning gets set up in the _urls() method. Blech.
-  if ($self->{_yahoo_div_fix}) {
-    # dodges header line
-    $csv_string =~ s/(\n\S+)\s+/$1,/sg;
-    delete $self->{_yahoo_div_fix};
-  }
-  $self->SUPER::csv_parser($csv_string, @_);
-}
+### Overrides
 
 sub clear_cache {
   # source_type() is a cache, as well as a signal. Make sure and clear
