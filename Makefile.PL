@@ -1,10 +1,8 @@
 use ExtUtils::MakeMaker;
 
-$VERSION = 0.22;
-
 WriteMakefile(
-	      NAME      => 'Finance-QuoteHist',
-	      VERSION   => $VERSION,
+	      NAME          => 'Finance-QuoteHist',
+	      VERSION_FROM  => 'lib/Finance/QuoteHist.pm',
               PREREQ_PM => {
 			    LWP::UserAgent     => 0,
 			    HTTP::Request      => 0,

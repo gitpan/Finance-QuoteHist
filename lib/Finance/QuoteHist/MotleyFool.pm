@@ -96,7 +96,7 @@ Finance::QuoteHist::MotleyFool - Site-specific class for retrieving historical s
      );
 
   foreach $row ($q->quotes()) {
-    ($date $open $high $low $close $volume) = @$row;
+    ($symbol, $date, $open, $high, $low, $close, $volume) = @$row;
     ...
   }
 

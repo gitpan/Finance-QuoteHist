@@ -8,7 +8,7 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '0.21';
+$VERSION = '0.23';
 
 my @DEFAULT_ENGINES = qw(
 			 Finance::QuoteHist::Yahoo
@@ -60,24 +60,24 @@ Finance::QuoteHist - Perl module for fetching historical stock quotes.
 
   # Adjusted values
   foreach $row ($q->quote_get()) {
-    ($date $open $high $low $close $volume) = @$row;
+    ($symbol, $date, $open, $high, $low, $close, $volume) = @$row;
     ...
   }
 
   # Non adjusted values
   $q->adjusted(0);
   foreach $row ($q->quotes()) {
-     ($date, $open, $high, $low, $close, $volume, $adj_close) = @$row;
+     ($symbol, $date, $open, $high, $low, $close, $volume, $adj_close) = @$row;
   }
 
   # Splits
   foreach $row ($q->splits()) {
-     ($date, $post, $pre) = @$row;
+     ($symbol, $date, $post, $pre) = @$row;
   }
 
   # Dividends
   foreach $row ($q->dividends()) {
-     ($date, $dividend) = @$row;
+     ($symbol, $date, $dividend) = @$row;
   }
 
   # Culprit

@@ -68,7 +68,7 @@ Finance::QuoteHist::FinancialWeb - Site-specific class for retrieving historical
      );
 
   foreach $row ($q->quotes()) {
-    ($date $open $high $low $close $volume) = @$row;
+    ($symbol, $date, $open, $high, $low, $close, $volume) = @$row;
     ...
   }
 

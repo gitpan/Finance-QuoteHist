@@ -18,20 +18,26 @@ The real workhorse of the bundle, a sub class of
 LWP::UserAgent. Site-specific modules are sub classes
 of this module.
 
+Finance::QuoteHist::Yahoo
+-------------------------
+Specific instance of the Generic module tailored for the
+Yahoo website. This subclass also features information
+on historical splits and dividends.
+
 Finance::QuoteHist::MotleyFool
 ------------------------------
 Specific instance of the Generic module tailored for the
-Motley Fool website.
+Motley Fool website. Historical quotes only.
 
 Finance::QuoteHist::FinancialWeb
 --------------------------------
 Specific instance of the Generic module tailored for the
-FinancialWeb site.
+FinancialWeb site. Historical quotes only.
 
 INSTALLATION
 
-You install HTML-Element-Extended, as you would install any perl library,
-by running these commands:
+You install HTML-Element-Extended, as you would install any
+perl library, by running these commands:
 
    perl Makefile.PL
    make
@@ -72,6 +78,10 @@ parameters. Furthermore, the data from these web sites is usually not
 even guaranteed by the web sites themselves, and oftentimes is
 acquired elsewhere. See the documentation for each site-specific
 module for more information regarding the disclaimer for that site. 
+
+ACKNOWLEDGEMENTS
+
+Thanks to Jim Miner for his generous efforts testing this module.
 
 COPYRIGHT
 

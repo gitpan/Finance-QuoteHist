@@ -310,24 +310,24 @@ Finance::QuoteHist::Yahoo - Site-specific subclass for retrieving historical sto
 
   # Adjusted values
   foreach $row ($q->quotes()) {
-    ($date, $open, $high, $low, $close, $volume) = @$row;
+    ($symbol, $date, $open, $high, $low, $close, $volume) = @$row;
     ...
   }
 
   # Non adjusted values
   $q->adjusted(0);
   foreach $row ($q->quotes()) {
-     ($date, $open, $high, $low, $close, $volume, $adj_close) = @$row;
+     ($symbol, $date, $open, $high, $low, $close, $volume, $adj_close) = @$row;
   }
 
   # Splits
   foreach $row ($q->splits()) {
-     ($date, $post, $pre) = @$row;
+     ($symbol, $date, $post, $pre) = @$row;
   }
 
   # Dividends
   foreach $row ($q->dividends()) {
-     ($date, $dividend) = @$row;
+     ($symbol, $date, $dividend) = @$row;
   }
 
 =head1 DESCRIPTION

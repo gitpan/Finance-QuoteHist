@@ -1,7 +1,8 @@
 Revision history for Perl extension Finance::QuoteHist.
 
-0.22  Sun Oct 29 23:20:11 CST 2000
+0.23  Thu Nov  2 15:19:00 CST 2000
 	- Fixed cache bug with Yahoo::source_type()
+	- Documentation revisions and fixes
 
 0.21  Wed Sep 13 13:25:35 CDT 2000
 	- Splits and dividends added
