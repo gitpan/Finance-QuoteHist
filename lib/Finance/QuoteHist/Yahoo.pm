@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.23';
+$VERSION = '0.24';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -192,6 +192,10 @@ sub _urls {
   foreach (sort keys %date_pairs) {
     my($sy, $sm, $sd) = /$date_pat/;
     my($ey, $em, $ed) = $date_pairs{$_} =~ /$date_pat/;
+
+    # Yahoo implemented Jan=0, Dec=11
+    $sm -= 1; $em -= 1;
+
     my $k = $source_mode eq 'csv' ? 'table.csv' : 'k';
     push(@urls, "http://table.finance.yahoo.com/${k}?" .
 	 join('&', "a=$sm", "b=$sd", "c=$sy",
