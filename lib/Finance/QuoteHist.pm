@@ -8,13 +8,12 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '0.25';
+$VERSION = '0.28';
 
 my @DEFAULT_ENGINES = qw(
 			 Finance::QuoteHist::Yahoo
-			 Finance::QuoteHist::MotleyFool
+			 Finance::QuoteHist::WallStreetCity
 			 Finance::QuoteHist::SiliconInvestor
-			 Finance::QuoteHist::FinancialWeb
 			);
 
 sub new {
@@ -97,8 +96,8 @@ Unless otherwise defined via the I<lineup> attribute, this module will
 select a I<lineup> for you, the default being:
 
     Finance::QutoeHist::Yahoo
-    Finance::QuoteHist::MotleyFool
-    Finance::QuoteHist::FinancialWeb
+    Finance::QuoteHist::WallStreetCity
+    Finance::QuoteHist::SiliconInvestor
 
 Once instantiated, this module behaves identically to the first module
 in the I<lineup>, sharing all of that module's methods.
@@ -175,14 +174,14 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2002 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself.
 
 =head1 SEE ALSO
 
 Finance::QuoteHist::Generic(3), Finance::QuoteHist::Yahoo(3),
-Finance::QuoteHist::MotleyFool(3),
-Finance::QuoteHist::FinancialWeb(3), perl(1).
+Finance::QuoteHist::WallStreetCity(3),
+Finance::QuoteHist::SiliconInvestor(3), perl(1).
 
 =cut

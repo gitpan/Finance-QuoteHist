@@ -1,5 +1,14 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+0.28  Thu Feb 28 08:23:08 CST 2002
+	- Updated Yahoo interface, incorporating new changes.
+	- added proxy_env parameter and method to ease proxy
+	  handling via LWP::UserAgent
+	- Added WallStreetCity.pm (basic source)
+	- Removed FinancialWeb.pm (apparently defunct)
+	- Removed MotleyFool.pm (no longer offers tabular data, plus
+	  login now required for historical info)
+
 0.25  Mon Jan  8 19:35:00 CST 2001
 	- Doc cleanup
 

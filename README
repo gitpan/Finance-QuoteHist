@@ -24,20 +24,21 @@ Specific instance of the Generic module tailored for the
 Yahoo website. This subclass also features information
 on historical splits and dividends.
 
-Finance::QuoteHist::MotleyFool
-------------------------------
+Finance::QuoteHist::WallStreetCity
+----------------------------------
 Specific instance of the Generic module tailored for the
-Motley Fool website. Historical quotes only.
+Wall Street City websited. Historical quotes only.
 
 Finance::QuoteHist::SiliconInvestor
 -----------------------------------
 Specific instance of the Generic module tailored for the
-Silicon Investor website. Historical quotes only.
+Silicon Investor website. Historical quotes only, although
+this appears to be one of the few sites offering historical
+information on defunct symbols.
 
-Finance::QuoteHist::FinancialWeb
---------------------------------
-Specific instance of the Generic module tailored for the
-FinancialWeb site. Historical quotes only.
+There used to be modules for Motley Fool as well as
+FinancialWeb, but the Fool ceased offering tabular data
+and FinancialWeb appears to be gone for good.
 
 INSTALLATION
 
@@ -91,11 +92,12 @@ module for more information regarding the disclaimer for that site.
 
 ACKNOWLEDGEMENTS
 
-Thanks to Jim Miner for his generous efforts testing this module.
+Thanks to Jim Miner for his generous efforts testing this module. Thanks
+to Josh Woodward for some pointers on the Yahoo interface.
 
 COPYRIGHT
 
-Copyright (c) 1999-2000 Matthew P. Sisk.  All rights reserved.
+Copyright (c) 1999-2002 Matthew P. Sisk.  All rights reserved.
 All wrongs revenged. This program is free software; you can
 redistribute it and/or modify it under the same terms as
 Perl itself.

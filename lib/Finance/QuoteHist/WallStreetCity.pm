@@ -1,10 +1,10 @@
-package Finance::QuoteHist::MotleyFool;
+package Finance::QuoteHist::WallStreetCity;
 
 use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.22';
+$VERSION = '0.01';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -13,10 +13,9 @@ use Date::Manip;
 
 # Example URL:
 #
-# http://quote.fool.com/historical/historicalquotes.asp?startmo=03&startday=1&startyr=1999&endmo=03&endday=31&endyr=1999&period=daily&symbols=PUMA&currticker=PUMA
+# http://host.wallstreetcity.com/wsc2/Historical_Quotes.html?template=hisquote.htm&Symbol=SFA&Button=Get+Quotes&StartDate=02%2F28%2F01&Type=0&EndDate=02%2F28%2F02&Format=0
 #
-# The Fool returns data in 30 day increments, so tis best to parse
-# monthly.
+# Wall Street City appears to have no chunking limits on queries.
 
 my $Default_Currency = 'USD';
 
@@ -24,7 +23,7 @@ sub new {
   my $that = shift;
   my $class = ref($that) || $that;
   my %parms = @_;
-  $parms{reverse} = 1 unless defined $parms{reverse};
+#  $parms{reverse} = 1 unless defined $parms{reverse};
   my $self = Finance::QuoteHist::Generic->new(%parms);
   bless $self, $class;
   $self;
@@ -37,42 +36,27 @@ sub quote_urls {
   $end_date   = $self->end_date   unless $end_date;
 
   # For splitting dates of the form 'YYYYMMDD'
-  my $date_pat = qr(^\s*(\d{4})(\d{2})(\d{2}));
+  # Also, Wall Street City wants 2 digit years
+  my $date_pat = qr(^\s*\d{2}(\d{2})(\d{2})(\d{2}));
 
   # Make sure date boundaries are pre-sorted.
   if ($start_date gt $end_date) {
     ($start_date, $end_date) = ($end_date, $start_date);
   }
 
-  # Break date range into 30 day blocks (last block might
-  # end up being less than 30 days)
-  my(%date_pairs, $low_date, $high_date);
-  $low_date = $start_date;
-  while (1) {
-    $high_date = DateCalc($low_date,  '+ 30 days');
-    last if Date_Cmp($high_date, $end_date) == 1;
-    $date_pairs{$low_date} = $high_date;
-    $low_date = DateCalc($high_date, '+ 1 day');
-  }
-  # Last query block only needs to extend to end_date
-  $date_pairs{$low_date} = $end_date;
+  my($sy, $sm, $sd) = $start_date =~ /$date_pat/;
+  my($ey, $em, $ed) = $end_date   =~ /$date_pat/;
+  my $start = join('%2F', $sm, $sd, $sy);
+  my $end   = join('%2F', $em, $ed, $ey);
 
+  my $url = 'http://host.wallstreetcity.com/wsc2/Historical_Quotes.html?template=hisquote.htm';
+  $url .= "&Symbol=$symbol&Button=Get+Quotes&StartDate=$start&Type=0&EndDate=$end&Format=0";
 
-  my @urls;
-  foreach (sort keys %date_pairs) {
-    my($sy, $sm, $sd) = /$date_pat/;
-    my($ey, $em, $ed) = $date_pairs{$_} =~ /$date_pat/;
-    push(@urls, 'http://quote.fool.com/historical/historicalquotes.asp?' .
-	 join('&', "startmo=$sm", "startday=$sd", "startyr=$sy",
-	      "endmo=$em", "endday=$ed", "endyr=$ey",
-	      "symbols=$symbol", "currticker=$symbol", 'period=daily'));
-  }
-
-  @urls;
+  $url;
 }
 
 sub currency {
-  # If the Motley Fool ever does on-the-fly currency conversion, this
+  # If the Wall Street City site ever does on-the-fly currency conversion, this
   # method can reflect/set the currency specified in the query.
   $Default_Currency;
 }
@@ -83,12 +67,12 @@ __END__
 
 =head1 NAME
 
-Finance::QuoteHist::MotleyFool - Site-specific class for retrieving historical stock quotes.
+Finance::QuoteHist::WallStreetCity - Site-specific class for retrieving historical stock quotes.
 
 =head1 SYNOPSIS
 
-  use Finance::QuoteHist::MotleyFool;
-  $q = new Finance::QuoteHist::MotleyFool
+  use Finance::QuoteHist::WallStreetCity;
+  $q = new Finance::QuoteHist::WallStreetCity
      (
       symbols    => [qw(IBM UPS AMZN)],
       start_date => '01/01/1999',
@@ -102,17 +86,16 @@ Finance::QuoteHist::MotleyFool - Site-specific class for retrieving historical s
 
 =head1 DESCRIPTION
 
-Finance::QuoteHist::MotleyFool is a subclass of
+Finance::QuoteHist::WallStreetCity is a subclass of
 Finance::QuoteHist::Generic, specifically tailored to read historical
-quotes from the Motley Fool web site (I<http://www.fool.com/>). Motley
-Fool does not currently supply information on dividend distributions
+quotes from the Wall Street City web site (I<http://www.wallstreetcity.com/>). Wall
+Street City does not currently supply information on dividend distributions
 or splits.
 
-For quote queries in particular, at the time of this writing, the
-Motley Fool web site utilizes start and end dates, but never returns
-more than a month worth of data for a particular symbol. The
-C<quote_urls()> method provides all the URLs necessary given the date
-range and symbols. These are automatically utilized by the native
+At the time of this writing, Wall Street City did not appear to have any
+limits on query results, so only a single URL is required. The
+C<quote_urls()> method provides the URL necessary given the date
+range and symbol. This URL is automatically utilized by the native
 methods of Finance::QuoteHist::Generic.
 
 Please see L<Finance::QuoteHist::Generic(3)> for more details on usage
@@ -152,26 +135,27 @@ parameters. Furthermore, the data from these web sites is usually not
 even guaranteed by the web sites themselves, and oftentimes is
 acquired elsewhere.
 
-In the case of The Motley Fool, as of September 13, 2000, their
+In the case of Wall Street City, as of February 28, 2002, their
 statement reads, in part:
 
-  We do our best to get you timely, accurate information,
-  but we reserve the right to be late, wrong, stupid, or
-  even foolish. Use this data for your own information,
-  not for trading. The Fool and its data or content
-  providers (such as S&P Comstock, BigCharts, AFX, or
-  Comtex) won't be liable for any delays or errors in the
-  data, or for any losses you suffer because you relied
-  upon it.
+ You may store in the memory of your computer and may manipulate,
+ analyze, reformat, printed and/or display for your use only the
+ information received or accessed through the Telescan System
+ pursuant to this Subscriber Agreement.  You may not resell,
+ redistribute, broadcast or transfer the information or use the
+ information in a searchable, machine-readable database.  Unless
+ separately and specifically authorized in writing by an officer
+ of Telescan, you may not rent, lease, sublicense, distribute,
+ transfer, copy, reproduce, publicly display, publish, adapt, store
+ or time-share the Telescan System, any part thereof, or any of the
+ information received or accessed therefrom to or through any other
+ person or entity.
+
 
 There you have it. If you feel like you might have concerns with this
-then first double check the statement on the bottom of this page:
+then first double check the full text on this page:
 
-  http://quote.fool.com/historical/historicalquotes.asp
-
-In addition, you might want to read their disclaimer:
-
-  http://www.fool.com/help/disclaimer.htm
+  http://host.wallstreetcity.com/wsc2/License_Agreement.html
 
 If you still have concerns, then use another site-specific historical
 quote instance, or none at all.
@@ -184,7 +168,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2002 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself.
 

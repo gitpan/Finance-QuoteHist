@@ -13,11 +13,11 @@ use Date::Manip;
 
 # Example URL:
 #
-# http://chart.yahoo.com/t?a=01&b=01&c=99&d=03&e=01&f=00&g=d&s=SFA&y=0
+# http://table.finance.yahoo.com/k?a=01&b=01&c=99&d=03&e=01&f=00&g=d&s=SFA&y=0
 #
 # Example for CSV output:
 #
-# http://chart.yahoo.com/t?a=01&b=01&c=99&d=03&e=01&f=00&g=d&s=SFA&y=0&q=q&x=.csv
+# http://table.finance.yahoo.com/table.csv?a=1&b=1&c=1999&d=3&e=1&f=2000&s=sfa&y=0&g=d
 #
 # For CSV output, date ranges are unlimited; the output is adjusted
 # and does not include any split or dividend notices.
@@ -192,11 +192,11 @@ sub _urls {
   foreach (sort keys %date_pairs) {
     my($sy, $sm, $sd) = /$date_pat/;
     my($ey, $em, $ed) = $date_pairs{$_} =~ /$date_pat/;
-    push(@urls, 'http://chart.yahoo.com/t?' .
+    my $k = $source_mode eq 'csv' ? 'table.csv' : 'k';
+    push(@urls, "http://table.finance.yahoo.com/${k}?" .
 	 join('&', "a=$sm", "b=$sd", "c=$sy",
 	      "d=$em", "e=$ed", "f=$ey",
 	      "g=$gval", "s=$ticker"));
-    $urls[-1] .= '&q=q&x=.csv' if $source_mode eq 'csv';
   }
 
   @urls;
@@ -335,7 +335,7 @@ Finance::QuoteHist::Yahoo - Site-specific subclass for retrieving historical sto
 Finance::QuoteHist::Yahoo is a subclass of
 Finance::QuoteHist::Generic, specifically tailored to read historical
 quotes, dividends, and splits from the Yahoo web site
-(I<http://charts.yahoo.com/>).
+(I<http://table.finance.yahoo.com/>).
 
 For quotes and dividends, Yahoo can return data quickly in CSV
 format. For quotes, non-adjusted values are available in HTML. Splits
@@ -487,7 +487,7 @@ in part:
 If you would like to know more, check out where this statement was
 found:
 
-  http://chart.yahoo.com/d
+  http://table.finance.yahoo.com/k
 
 Better yet, you might want to read their disclaimer page:
 
@@ -504,7 +504,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2002 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself.
 
