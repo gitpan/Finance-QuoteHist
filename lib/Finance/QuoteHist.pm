@@ -8,7 +8,7 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '0.24';
+$VERSION = '0.25';
 
 my @DEFAULT_ENGINES = qw(
 			 Finance::QuoteHist::Yahoo
@@ -122,10 +122,11 @@ example above. Those methods are:
 =item quotes()
 
 Returns a list of rows (or a reference to an array containing those
-rows, if in scalar context). Each row contains the B<Date>, B<Open>,
-B<High>, B<Low>, B<Close>, and B<Volume> for that date. Optionally, if
-non-adjusted values were requested, their will be an extra element at
-the end of the row for the B<Adjusted> closing price.
+rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
+B<Open>, B<High>, B<Low>, B<Close>, and B<Volume> for that
+date. Optionally, if non-adjusted values were requested, their will be
+an extra element at the end of the row for the B<Adjusted> closing
+price.
 
 =item dividends()
 

@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.21';
+$VERSION = '0.22';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -50,7 +50,7 @@ sub quote_urls {
   $low_date = $start_date;
   while (1) {
     $high_date = DateCalc($low_date,  '+ 30 days');
-    last if $high_date gt $end_date;
+    last if Date_Cmp($high_date, $end_date) == 1;
     $date_pairs{$low_date} = $high_date;
     $low_date = DateCalc($high_date, '+ 1 day');
   }
@@ -130,9 +130,9 @@ example above. That method is:
 =item quotes()
 
 Returns a list of rows (or a reference to an array containing those
-rows, if in scalar context). Each row contains the B<Date>, B<Open>,
-B<High>, B<Low>, B<Close>, and B<Volume> for that date. Quote values
-are pre-adjusted for this site.
+rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
+B<Open>, B<High>, B<Low>, B<Close>, and B<Volume> for that date. Quote
+values are pre-adjusted for this site.
 
 =back
 

@@ -1,5 +1,8 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+0.25  Mon Jan  8 19:35:00 CST 2001
+	- Doc cleanup
+
 0.24  Wed Nov 29 02:28:59 CST 2000
 	- Replaced FinancialWeb with SiliconInvestor
 	  in order to provide information on defunct

@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.22';
+$VERSION = '0.23';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -180,7 +180,7 @@ sub _urls {
     $low_date = $start_date;
     while (1) {
       $high_date = DateCalc($low_date,  '+ 200 days');
-      last if $high_date gt $end_date;
+      last if Date_Cmp($high_date, $end_date) == 1;
       $date_pairs{$low_date} = $high_date;
       $low_date = DateCalc($high_date, '+ 1 day');
     }
@@ -374,22 +374,23 @@ example above. Those methods are:
 =item quotes()
 
 Returns a list of rows (or a reference to an array containing those
-rows, if in scalar context). Each row contains the B<Date>, B<Open>,
-B<High>, B<Low>, B<Close>, and B<Volume> for that date. Optionally, if
-non-adjusted values were requested, their will be an extra element at
-the end of the row for the B<Adjusted> closing price.
+rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
+B<Open>, B<High>, B<Low>, B<Close>, and B<Volume> for that
+date. Optionally, if non-adjusted values were requested, their will be
+an extra element at the end of the row for the B<Adjusted> closing
+price.
 
 =item dividends()
 
 Returns a list of rows (or a reference to an array containing those
-rows, if in scalar context). Each row contains the B<Date> and amount
-of the B<Dividend>, in that order.
+rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
+and amount of the B<Dividend>, in that order.
 
 =item splits()
 
 Returns a list of rows (or a reference to an array containing those
-rows, if in scalar context). Each row contains the B<Date>, B<Post>
-split shares, and B<Pre> split shares, in that order.
+rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
+B<Post> split shares, and B<Pre> split shares, in that order.
 
 =item adjusted($boolean)
 
