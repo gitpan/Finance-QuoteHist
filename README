@@ -29,6 +29,11 @@ Finance::QuoteHist::MotleyFool
 Specific instance of the Generic module tailored for the
 Motley Fool website. Historical quotes only.
 
+Finance::QuoteHist::SiliconInvestor
+-----------------------------------
+Specific instance of the Generic module tailored for the
+Silicon Investor website. Historical quotes only.
+
 Finance::QuoteHist::FinancialWeb
 --------------------------------
 Specific instance of the Generic module tailored for the
@@ -54,7 +59,12 @@ Changes for recent changes.
 
 SUPPORT
 
-Questions and comments should be directed to Matt Sisk <sisk@mojotoad.com>
+There is a mailing list available. To view past messages or subscribe,
+go to:
+
+   http://lists.sourceforge.net/mailman/listinfo/quotehist-general
+
+Questions and comments can also be directed to Matt Sisk <sisk@mojotoad.com>
 
 AVAILABILITY
 

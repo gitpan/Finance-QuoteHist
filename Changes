@@ -1,5 +1,11 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+0.24  Wed Nov 29 02:28:59 CST 2000
+	- Replaced FinancialWeb with SiliconInvestor
+	  in order to provide information on defunct
+	  ticker symbols -- FinancialWeb ceased
+	  coverage of these symbols.
+
 0.23  Thu Nov  2 15:19:00 CST 2000
 	- Fixed cache bug with Yahoo::source_type()
 	- Documentation revisions and fixes

@@ -12,7 +12,7 @@ use HTML::TableExtract;
 
 $VERSION = '0.21';
 
-my @Default_Quote_Labels    = qw( Date Open High Low Close Volume );
+my @Default_Quote_Labels    = qw( Date Open High Low Close Vol );
 my @Default_Dividend_Labels = qw( Date Div );
 my @Default_Split_Labels    = qw( Date Post Pre );
 
@@ -682,7 +682,7 @@ sub precision_normalize {
       $row->[$labelmap->{$_}] = sprintf("%.$self->{quote_precision}f",
 					$row->[$labelmap->{$_}]);
     }
-    $row->[$labelmap->{volume}] = sprintf("%d", $row->[$labelmap->{volume}]);
+    $row->[$labelmap->{vol}] = sprintf("%d", $row->[$labelmap->{vol}]);
   }
   $rows;
 }

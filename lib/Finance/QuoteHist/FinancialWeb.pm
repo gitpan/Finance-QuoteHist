@@ -24,6 +24,9 @@ use Finance::QuoteHist::Generic;
 #
 # HTML::TableExtract will remap with the default Finance::QuoteHist
 # mappings, though.
+#
+# FinancialWeb no longer supports defunct ticker symbols. See
+# SiliconInvestor for that.
 
 my $Default_Currency = 'USD';
 

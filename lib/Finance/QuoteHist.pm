@@ -8,11 +8,12 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '0.23';
+$VERSION = '0.24';
 
 my @DEFAULT_ENGINES = qw(
 			 Finance::QuoteHist::Yahoo
 			 Finance::QuoteHist::MotleyFool
+			 Finance::QuoteHist::SiliconInvestor
 			 Finance::QuoteHist::FinancialWeb
 			);
 
