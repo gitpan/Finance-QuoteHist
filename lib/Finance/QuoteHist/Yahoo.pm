@@ -4,79 +4,71 @@ use strict;
 use vars qw($VERSION @ISA);
 use Carp;
 
-$VERSION = '0.26';
+$VERSION = '1.00';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
 
 use Date::Manip;
 
-# Example URL:
+# Example for HTML output:
 #
-# http://table.finance.yahoo.com/k?a=01&b=01&c=99&d=03&e=01&f=00&g=d&s=SFA&y=0
+# http://finance.yahoo.com/q/hp?s=IBM&a=00&b=2&c=1800&d=04&e=8&f=2005&g=d&z=66&y=66
+#
+#   * s - ticker symbol
+#   * a - start month
+#   * b - start day
+#   * c - start year
+#   * d - end month
+#   * e - end day
+#   * f - end year
+#   * g - resolution (e.g. 'd' is daily)
+#   * y is the offset (cursor) from the start date
+#   * z is the number of results to return starting at the cursor (66
+#     maximum, apparently)
+#
+# Note alternate url:
+# http://table.finance.yahoo.com/d?a=1&b=1&c=1800&d=3&e=1&f=2006&s=yhoo&y=200&g=d
 #
 # Example for CSV output:
 #
-# http://table.finance.yahoo.com/table.csv?a=1&b=1&c=1999&d=3&e=1&f=2000&s=sfa&y=0&g=d
+# http://table.finance.yahoo.com/table.csv?s=IBM&a=00&b=2&c=1800&d=04&e=8&f=2005&g=d&ignore=.csv
 #
 # Note that Yahoo implements month numbering with Jan=0 and Dec=11.
 #
-# For CSV output, date ranges are unlimited; the output is adjusted
-# and does not include any split or dividend notices.
+# For CSV output, date ranges are unlimited; the output is adjusted and
+# does not include any split or dividend notices.
 #
-# For HTML output, Yahoo takes arbitrary date ranges, but returns
-# results in batches of 200, so we use 200 day blocks. Output is
-# non-adjusted, but includes an adjusted close column as well as split
-# and dividend notices.
+# URL for splits and dividends:
 #
-# Yahoo also includeds split and dividend information; these are
-# captured row by row by overiding the non_quote_row method. For the
-# date range specified, these can be examined with dividends() and
-# splits().
-
-my $Default_Currency = 'USD';
-
-# Tweak values for the all-might 'g' parameter. There is no
-# special-purpose query for splits like there is dividends, so we have
-# to use the regular quote interface and filter out the split
-# notices. I thought I could save some bandwidth by snagging the
-# splits in the monthly timeblock quote option (mode 'm'), but alas,
-# the dates are trimmed to represent only the month and year -- we
-# must stick to the daily values; it's still far quicker than the
-# other sites since we can use 200 day blocks, though.
-my %Gmodes = (
-	      quote    => 'd',
-	      dividend => 'v',
-	      split    => 'd',
-	     );
+# These are either extracted from within the historical quote results
+# (non_quote_row()) or found directly:
+#
+# http://finance.yahoo.com/q/hp?s=IBM&a=00&b=2&c=1800&d=04&e=8&f=2005&g=v
+# http://table.finance.yahoo.com/table.csv?s=IBM&a=00&b=2&c=1800&d=04&e=8&f=2005&g=v&ignore=.csv
 
 sub new {
   my $that = shift;
   my $class = ref($that) || $that;
   my %parms = @_;
 
-  # With both HTML and CSV, Yahoo returns results newest on top
-  $parms{reverse} = 1 unless defined $parms{reverse};
-
-  # Yahoo has non-adjusted data available, but only in HTML mode.
-  $parms{has_non_adjusted} = 1 unless defined $parms{has_non_adjusted};
-
-  my $source_type;
-  if ($source_type = $parms{source_type}) {
-    delete $parms{source_type};
-  }
+  $parms{parse_mode} ||= 'csv';
 
   my $self = Finance::QuoteHist::Generic->new(%parms);
   bless $self, $class;
 
-  $self->source_type($source_type ? $source_type : 0);
+  $self->set_label_pattern(
+    target_mode => 'dividend',
+    parse_mode  => 'html',
+    label       => 'div',
+    pattern     => qr/(Open|Div)/
+  );
 
   $self;
 }
 
-# Yahoo can fetch dividends and splits. Both can be extracted from the
-# HTML quote results; dividends can also be fetched directly, but not
-# splits.
+# Yahoo can fetch dividends and splits. They can be extracted from
+# regular quote results or queried directly.
 
 # Not so direct query
 sub splits {
@@ -85,198 +77,119 @@ sub splits {
   # that the _urls() method will generate the proper URL...otherwise
   # we would get CSV, which has no split info.
   my $self = shift;
-  my $ost = $self->source_type;
-  $self->source_type('html');
-  my $rows = $self->SUPER::splits(@_);
-  $self->source_type($ost ? $ost : 0);
-  wantarray ? @$rows : $rows;
+  my $parse_mode_orig  = $self->parse_mode;
+  my $target_mode_orig = $self->target_mode;
+  $self->parse_mode('html');
+  $self->target_mode('dividend');
+  my $rows = $self->dividends(@_);
+  $self->parse_mode($parse_mode_orig);
+  $self->target_mode($target_mode_orig);
+  $self->result_rows('split');
 }
 
-sub quote_labels {
-  # Override. In HTML mode, we have an Adjusted value column, but not
-  # in CSV since everything is pre-adjusted.
+sub labels {
   my $self = shift;
-  my @normal_labels = $self->SUPER::quote_labels();
-  if (!$self->adjusted || $self->source_type eq 'html') {
-    return (@normal_labels, 'Adj');
-  }
-  @normal_labels;
+  my %parms = @_;
+  my $target_mode = $self->target_mode;
+  my @labels = $self->SUPER::labels(%parms);
+  push(@labels, 'adj') if $target_mode eq 'quote';
+  @labels;
 }
 
 sub extractors {
   # Override. If we are pulling CSV, save some time by skipping
   # extraction attempts
-  my $self = shift;
-  $self->source_type eq 'csv' ? () : $self->SUPER::extractors();
+  my $self  = shift;
+  my %parms = @_;
+  my $target_mode = $parms{target_mode} || $self->target_mode;
+  my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
+  return () if $parse_mode eq 'csv';
+  return () unless $target_mode eq 'quote' || $target_mode eq 'dividend';
+  my $date_column = $self->label_column('date');
+  my $split_column = 1;
+  my %extractors;
+  # for both quote and dividend results in html mode
+  $extractors{'split'} = sub {
+    my $row = shift;
+    die "row as array ref required" unless ref $row;
+    # example split: "3 : 1 Stock Split"
+    my($post, $pre) = $row->[$split_column] =~ /(\d+)\s*:\s*(\d+).*Split/i;
+    return undef unless $post && $pre;
+    [ $row->[$date_column], $post, $pre ];
+  };
+  if ($target_mode eq 'quote') {
+    my $div_column = 1;
+    $extractors{dividend} = sub {
+      # Get a row as array ref, see if it contains dividend info. If so,
+      # return another array ref with the extracted info.
+      my $row = shift;
+      die "row as array ref required\n" unless ref $row;
+      # example dividend: "$0.01 Cash Dividend"
+      my($div) = $row->[$div_column] =~ /\$*(\d*\.\d+).*Dividend/i;
+      return undef unless defined $div;
+      [ $row->[$date_column], $row->[$div_column] ];
+    };
+  }
+  %extractors;
 }
 
-# Let the monster _urls() method take care of the details of both
-# target type and content type.
+# Delegate to a central url_maker() method
+sub quote_urls    { shift->url_maker(@_, mode => 'quote'   ) }
+sub dividend_urls { shift->url_maker(@_, mode => 'dividend') }
 
-sub quote_urls    { shift->_urls('quote',    @_) }
-sub dividend_urls { shift->_urls('dividend', @_) }
-
-sub _urls {
-  my($self, $mode, $ticker, $start_date, $end_date) = @_;
-  $ticker or croak "Ticker symbol required\n";
-  $mode   or croak "Gmode required\n";
-  my $gval = $Gmodes{$mode} or croak "Unknown url mode ($mode)\n";
-
-  $start_date = $self->start_date unless $start_date;
-  $end_date   = $self->end_date   unless $end_date;
-
-  # For splitting dates of the form 'YYYYMMDD'
-  my $date_pat = qr(^\s*(\d{4})(\d{2})(\d{2}));
-
-  # Make sure date boundaries are pre-sorted.
-  if ($start_date gt $end_date) {
+sub url_maker {
+  my($self, %parms) = @_;
+  my $target_mode = $parms{target_mode} || $self->target_mode;
+  my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
+  my($ticker, $start_date, $end_date) =
+    @parms{qw(symbol start_date end_date)};
+  $start_date ||= $self->start_date;
+  $end_date   ||= $self->end_date;
+  if ($start_date && $end_date && $start_date gt $end_date) {
     ($start_date, $end_date) = ($end_date, $start_date);
   }
-
-  my(%date_pairs, $source_mode);
-
-  # Source type can be overridden, via prior setting via
-  # source_type(). This is what happens when grabbing splits, for
-  # instance.
-  if ($self->source_type) {
-    $source_mode = $self->source_type;
-  }
-  else {
-    # HTML is not preadjusted, but includes an adjusted close. CSV is
-    # preadjusted for all values. The only time we drop into HTML mode
-    # with a direct quote query is if values have been specifically
-    # requested to be non-adjusted.
-    if ($mode eq 'dividend') {
-      $source_mode = 'csv';
-    }
-    elsif ($mode eq 'quote') {
-      $source_mode = $self->{adjusted} ? 'csv' : 'html';
-    }
-  }
-
-  # Heads up for friends such as extractors() that optimize based on
-  # output type.
-  $self->source_type($source_mode);
-
-  if ($source_mode ne 'html') {
-    # Single date block for CSV retrievals; Yahoo does not limit the
-    # query range for CSV results.
-    $self->parse_mode('csv');
-    $date_pairs{$start_date} = $end_date;
-    # hack for munged CSV on Yahoo...see csv_parser() below
-    ++$self->{_yahoo_div_fix} if $mode eq 'dividend';
-  }
-  elsif ($mode eq 'dividend') {
-    # In case we're being forced to do a direct dividend query in HTML
-    # mode, we might as well make it a single date block because Yahoo
-    # does not limit dividend queries, either.
-    $self->parse_mode('html');
-    $date_pairs{$start_date} = $end_date;
-  }
-  else {
-    # 200 day block limit for HTML quote queries
-    $self->parse_mode('html');
-    my($low_date, $high_date);
-    $low_date = $start_date;
-    while (1) {
-      $high_date = DateCalc($low_date,  '+ 200 days');
-      last if Date_Cmp($high_date, $end_date) == 1;
-      $date_pairs{$low_date} = $high_date;
-      $low_date = DateCalc($high_date, '+ 1 day');
-    }
-    # Last query block only needs to extend to end_date
-    $date_pairs{$low_date} = $end_date;
-  }
-
   my @urls;
-  foreach (sort keys %date_pairs) {
-    my($sy, $sm, $sd) = /$date_pat/;
-    my($ey, $em, $ed) = $date_pairs{$_} =~ /$date_pat/;
-
-    # Yahoo implemented Jan=0, Dec=11
-    $sm -= 1; $em -= 1;
-
-    my $k = $source_mode eq 'csv' ? 'table.csv' : 'k';
-    push(@urls, "http://table.finance.yahoo.com/${k}?" .
-	 join('&', "a=$sm", "b=$sd", "c=$sy",
-	      "d=$em", "e=$ed", "f=$ey",
-	      "g=$gval", "s=$ticker"));
+  my($host, $cgi);
+  if ($parse_mode eq 'csv') {
+    $host = 'table.finance.yahoo.com';
+    $cgi  = 'table.csv';
   }
+  else {
+    $host = 'finance.yahoo.com';
+    $cgi  = 'q/hp';
+  }
+  my $g = $target_mode eq 'quote' ? 'd' : 'v';
+  my($sy, $sm, $sd) = $self->ymd($start_date);
+  my($ey, $em, $ed) = $self->ymd($end_date);
+  # yahoo is 0-based months
+  $sm = sprintf("%02d", $sm - 1);
+  $em = sprintf("%02d", $em - 1);
+  
+  $ticker ||= 'BOOLEAN';
+  my $base_url = "http://$host/$cgi?";
+  my @base_parms = (
+    "a=$sm", "b=$sd", "c=$sy",
+    "d=$em", "e=$ed", "f=$ey",
+    "g=$g", "s=$ticker"
+  );
 
-  @urls;
-}
-
-sub dividend_extract {
-  # Get a row as array ref, see if it contains dividend info. If so,
-  # return another array ref with the extracted info.
-  my($self, $row) = @_;
-  croak "row as array ref required\n" unless ref $row;
-  # Use the current label map since we're an extractor
-  my $date_column = $self->target_label_map->{date};
-
-  # This is a munge...not sure how to abstract this column.
-  # (it might not be the same column as a direct query)
-  my $div_column  = 1;
-
-  # example dividend: "$0.01 Cash Dividend"
-  my($div) = $row->[$div_column] =~ /\$*(\d*\.\d+).*Dividend/i;
-  return undef unless defined $div;
-  [ $row->[$date_column], $row->[$div_column] ];
-}
-
-sub split_extract {
-  my($self, $row) = @_;
-  croak "row as array ref required\n" unless ref $row;
-
-  # Use the current label map since we're an extractor
-  my $date_column = $self->target_label_map->{date};
-
-  # This is a munge...not sure how to abstract this column.
-  # (it might not be the same column as a direct query)
-  my $split_column = 1;
-
-  # example split: "3:1 Stock Split (before market open)"
-  my($post, $pre) = $row->[$split_column] =~ /(\d+):(\d+).*Split/i;
-  return undef unless $post && $pre;
-  [ $row->[$date_column], $post, $pre ];
-}
-
-sub currency {
-  # If yahoo ever starts supporting on-the-fly currency conversion,
-  # this method can be a bit more elaborate to match/set the query.
-  $Default_Currency;
-}
-
-### Added methods
-
-sub source_type {
-  # Force our souce data type (HTML/CSV). If unspecified, we pick the
-  # quickest and most appropriate based on parameters. Sometimes we
-  # might want to force HTML mode, though.
-  my $self = shift;
-  if (@_) {
-    my $type = shift;
-    if ($type eq 'html' || $type eq 'csv') {
-      $self->{source_type} = $type;
-    }
-    elsif (!$type) {
-      $self->{source_type} = undef;
-    }
-    else {
-      croak "Unknown source type ($type)\n";
+  if ($parse_mode eq 'html' && $target_mode eq 'quote') {
+    my $cursor = 0;
+    my $window = 66;
+    return sub {
+      my $url = $base_url .
+        join('&', @base_parms,
+                 "z=$window", "y=$cursor");
+      $url .= '&ignore=.csv' if $parse_mode eq 'csv';
+      $cursor += $window;
+      $url;
     }
   }
-  $self->{source_type};
-}
-
-### Overrides
-
-sub clear_cache {
-  # source_type() is a cache, as well as a signal. Make sure and clear
-  # it with the rest of the caches.
-  my $self = shift;
-  $self->source_type(0);
-  $self->SUPER::clear_cache(@_);
+  else {
+    @urls = $base_url .  join('&', @base_parms);
+    $urls[0] .= '&ignore=.csv' if $parse_mode eq 'csv';
+    return sub { pop @urls }
+  }
 }
 
 1;
@@ -297,16 +210,10 @@ Finance::QuoteHist::Yahoo - Site-specific subclass for retrieving historical sto
       end_date   => 'today',
      );
 
-  # Adjusted values
+  # Values
   foreach $row ($q->quotes()) {
     ($symbol, $date, $open, $high, $low, $close, $volume) = @$row;
     ...
-  }
-
-  # Non adjusted values
-  $q->adjusted(0);
-  foreach $row ($q->quotes()) {
-     ($symbol, $date, $open, $high, $low, $close, $volume, $adj_close) = @$row;
   }
 
   # Splits
@@ -326,27 +233,15 @@ Finance::QuoteHist::Generic, specifically tailored to read historical
 quotes, dividends, and splits from the Yahoo web site
 (I<http://table.finance.yahoo.com/>).
 
-For quotes and dividends, Yahoo can return data quickly in CSV
-format. For quotes, non-adjusted values are available in HTML. Splits
-are only found embedded in the non-adjusted HTML produced for
-quotes. Behind the scenes, an HTML quote query is performed when
-splits are requested; quotes are retained based on the first
-successful query type. Unless told otherwise, via the C<adjusted()>
-method, the non-adjusted quotes will be automatically adjusted by
-applying the ratio derived from the adjusted closing value and
-non-adjusted closing value. This does not apply if quotes were
-retrieved using CSV.
+For quotes and dividends, Yahoo can return data quickly in CSV format.
+Both of these can also be extracted from HTML tables. Splits are only
+available embedded in the HTML version of dividends.
 
 There are no date range restrictions on CSV queries for quotes and
 dividends.
 
 For HTML queries, Yahoo takes arbitrary date ranges as arguments, but
-breaks results into pages of 200 entries.
-
-The C<quote_urls()> and C<dividend_urls> methods provide all the URLs
-necessary given the target, date range, and symbols, whether they be
-for HTML or CSV data. These are automatically utilized by the native
-methods of Finance::QuoteHist::Generic.
+breaks results into pages of 66 entries.
 
 Please see L<Finance::QuoteHist::Generic(3)> for more details on usage
 and available methods. If you just want to get historical quotes and
@@ -355,7 +250,7 @@ L<Finance::QuoteHist(3)>.
 
 =head1 METHODS
 
-The basic user interface consists of four methods, as seen in the
+The basic user interface consists of three methods, as seen in the
 example above. Those methods are:
 
 =over
@@ -364,10 +259,7 @@ example above. Those methods are:
 
 Returns a list of rows (or a reference to an array containing those
 rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
-B<Open>, B<High>, B<Low>, B<Close>, and B<Volume> for that
-date. Optionally, if non-adjusted values were requested, their will be
-an extra element at the end of the row for the B<Adjusted> closing
-price.
+B<Open>, B<High>, B<Low>, B<Close>, and B<Volume> for that date.
 
 =item dividends()
 
@@ -381,28 +273,6 @@ Returns a list of rows (or a reference to an array containing those
 rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
 B<Post> split shares, and B<Pre> split shares, in that order.
 
-=item adjusted($boolean)
-
-Sets whether adjusted or non-adjusted quotes are desired. Quotes are
-pre-adjusted by default.
-
-=back
-
-There are some extra methods and overridden methods in the Yahoo class
-that deserve a little explanation for developers interested in
-developing a similar site-specific module:
-
-=over
-
-=item source_type($type)
-
-Sets or returns the desired type of output from Yahoo. Valid settings
-are 'csv' and 'html'. By default this is 'csv', where possible, but
-will sometimes be set to 'html' in cases where there is no choice,
-such as when split information is requested. In these cases, the
-desired source type is temporarily saved for the duration of the query
-and restored afterwards.
-
 =back
 
 The following methods override methods provided by the
@@ -412,37 +282,20 @@ data formats available on Yahoo.
 
 =over
 
-=item quote_urls()
+=item url_maker()
 
-=item dividend_urls()
+Returns a subroutine reference tailored for the current target mode and
+parsing mode. The routine is an iterator that will produce all necessary
+URLs on repeated invocations necessary to complete a query.
 
-Provides the URLs necessary for direct quote and dividend queries;
-depending on the value returned by the C<source_type()> method, these
-URLs are either for HTML or CSV data.
+=item extractors()
 
-=item dividend_extract()
+Returns a hash of subroutine references that attempt to extract embedded
+values (dividends or splits) within the results from a larger query.
 
-=item split_extract()
+=item labels()
 
-The presence of these filters will lift dividend and split information
-from the regular HTML quote output of Yahoo. In the case of splits,
-this is the only way to get the information, hence there is no
-C<split_urls()> method present.
-
-=item split_get()
-
-The mere presence of the C<split_extract()> method would normally be
-enough for extraction retrieval. In this case, however, the data must
-be in HTML format. By overriding the method, 'html' can be
-specifically (and temporarily) requested for the duration of the
-query since the split information is not present in the CSV formats.
-
-=item csv_parser()
-
-Unfortunate hack. Yahoo just happens to return CSV data from direct
-dividend queries in a mangled format (the CSV separator is different
-for the header row vs. the rest of the rows). This corrects that
-before passing it along to the regular C<csv_parser()> method.
+Includes the 'adj' column.
 
 =back
 
@@ -462,27 +315,13 @@ parameters. Furthermore, the data from these web sites is usually not
 even guaranteed by the web sites themselves, and oftentimes is
 acquired elsewhere.
 
-In the case of Yahoo, as of September 13, 2000, their statement reads,
-in part:
+If you would like to know more, check out the terms of service from
+Yahoo!, which can be found here:
 
- Historical chart data and daily updates provided by Commodity
- Systems, Inc. (CSI). Data and information is provided for
- informational purposes only, and is not intended for trading
- purposes. Neither Yahoo nor any of its data or content providers
- (such as CSI) shall be liable for any errors or delays in the
- content, or for any actions taken in reliance thereon.
+  http://docs.yahoo.com/info/terms/
 
-If you would like to know more, check out where this statement was
-found:
-
-  http://table.finance.yahoo.com/k
-
-Better yet, you might want to read their disclaimer page:
-
-  http://www.yahoo.com/info/misc/disclaimer.html
-
-If you still have concerns, then use another site-specific
-historical quote instance, or none at all.
+If you still have concerns, then use another site-specific historical
+quote instance, or none at all.
 
 Above all, play nice.
 
@@ -492,7 +331,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2002 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2005 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself.
 

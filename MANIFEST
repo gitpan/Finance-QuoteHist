@@ -6,5 +6,4 @@ test.pl
 lib/Finance/QuoteHist.pm
 lib/Finance/QuoteHist/Generic.pm
 lib/Finance/QuoteHist/Yahoo.pm
-lib/Finance/QuoteHist/WallStreetCity.pm
-lib/Finance/QuoteHist/SiliconInvestor.pm
+lib/Finance/QuoteHist/QuoteMedia.pm
