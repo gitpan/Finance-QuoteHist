@@ -1,6 +1,11 @@
 Revision history for Perl extension Finance::QuoteHist.
 
-1.00  Thu Jun 23 16:25:53 EDT 2005
+1.01 Thu Jul 21 13:29:54 EDT 2005
+  - Added conditinal support for Text::CSV_PP in cases where
+    Text::CSV_XS is not installed
+  - Split out tests
+
+1.00 Thu Jun 23 16:25:53 EDT 2005
   - Reworked Yahoo! queries for new interface
   - Added quotes from QuoteMedia (they supply SiliconInvestor, so that
     was dropped)
@@ -11,14 +16,13 @@ Revision history for Perl extension Finance::QuoteHist.
     closures and iterators for particular targets and parse modes.
 
 0.33
-  - Broke up Yahoo! csv queries into blocks
-    of 1000, as apparently Yahoo! sometimes
-    puts a cap on these sort of queries (thanks
-    to Jay Strauss)
+  - Broke up Yahoo! csv queries into blocks of 1000, as apparently
+    Yahoo! sometimes puts a cap on these sort of queries (thanks to
+    Jay Strauss)
 
 0.32 Thu Aug 14 13:37:36 EDT 2003
-  - Fixed csv parsing for Yahoo dividend data
-    after they fixed their format
+  - Fixed csv parsing for Yahoo dividend data after they fixed
+    their format
   - Updated test data
 
 0.31 Thu Jan 16 19:20:31 GMT 2003
@@ -35,21 +39,20 @@ Revision history for Perl extension Finance::QuoteHist.
 
 0.28  Thu Feb 28 08:23:08 CST 2002
   - Updated Yahoo interface, incorporating new changes.
-  - added proxy_env parameter and method to ease proxy
-          handling via LWP::UserAgent
+  - added proxy_env parameter and method to ease proxy handling via
+    LWP::UserAgent
   - Added WallStreetCity.pm (basic source)
   - Removed FinancialWeb.pm (apparently defunct)
-  - Removed MotleyFool.pm (no longer offers tabular data, plus
-          login now required for historical info)
+  - Removed MotleyFool.pm (no longer offers tabular data, plus login now
+    required for historical info)
 
 0.25  Mon Jan  8 19:35:00 CST 2001
   - Doc cleanup
 
 0.24  Wed Nov 29 02:28:59 CST 2000
-  - Replaced FinancialWeb with SiliconInvestor
-          in order to provide information on defunct
-          ticker symbols -- FinancialWeb ceased
-          coverage of these symbols.
+  - Replaced FinancialWeb with SiliconInvestor in order to provide
+    information on defunct ticker symbols -- FinancialWeb ceased
+    coverage of these symbols.
 
 0.23  Thu Nov  2 15:19:00 CST 2000
   - Fixed cache bug with Yahoo::source_type()
@@ -57,22 +60,18 @@ Revision history for Perl extension Finance::QuoteHist.
 
 0.21  Wed Sep 13 13:25:35 CDT 2000
   - Splits and dividends added
-  - Much faster queries, primarily due to taking
-          advantage of Yahoo and CSV-formatted data,
-          when available
-  - Supports grabbing non-adjusted data, as well
-          as notification when transitioning to a site
-          that cannot provide non-adjusted data
-  - Supports auto-adjusting of non-adjusted
-          quotes for tables that include an adjusted
-          column (like Yahoo in HTML mode)
-  - Information pedigree support -- i.e., from
-          which site did the quote/split/dividend data
-          come for a particular ticker symbol
-  - Revised interface, although the old one is
-          mostly still supported (read the docs!)
-  - Defunct ticker symbols still supported
-          (quotes only, no split/dividend)
+  - Much faster queries, primarily due to taking advantage of Yahoo and
+    CSV-formatted data, when available
+  - Supports grabbing non-adjusted data, as well as notification when
+    transitioning to a site that cannot provide non-adjusted data
+  - Supports auto-adjusting of non-adjusted quotes for tables that
+    include an adjusted column (like Yahoo in HTML mode)
+  - Information pedigree support -- i.e., from which site did the
+    quote/split/dividend data come for a particular ticker symbol
+  - Revised interface, although the old one is mostly still supported
+    (read the docs!)
+  - Defunct ticker symbols still supported (quotes only, no
+    split/dividend)
 
 0.01  Wed Feb  2 18:24:07 CST 2000
   - Initial version.

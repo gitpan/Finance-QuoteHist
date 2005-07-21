@@ -133,10 +133,6 @@ sub extractors {
   %extractors;
 }
 
-# Delegate to a central url_maker() method
-sub quote_urls    { shift->url_maker(@_, mode => 'quote'   ) }
-sub dividend_urls { shift->url_maker(@_, mode => 'dividend') }
-
 sub url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;

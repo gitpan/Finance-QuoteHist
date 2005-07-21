@@ -796,9 +796,16 @@ sub html_parser {
 sub csv_parser {
   # Text::CSV_XS doesn't column slice or re-order, so we do.
   my $self = shift;
-  my $class = 'Text::CSV_XS';
-  eval "use $class";
-  croak "Oops using $class : $@\n" if $@;
+  my $class;
+  my $xs_class = 'Text::CSV_XS';
+  eval "use $xs_class";
+  if ($@) {
+    my $pp_class = 'Text::CSV_PP';
+    eval "use $pp_class";
+    croak "Could not load either $xs_class or $pp_class : $@\n" if $@;
+    $class = $pp_class;
+  }
+  else { $class = $xs_class }
   my @patterns = $self->patterns(@_);
   sub {
     my $data = shift;
