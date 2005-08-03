@@ -54,7 +54,7 @@ sub new {
 
   $parms{parse_mode} ||= 'csv';
 
-  my $self = Finance::QuoteHist::Generic->new(%parms);
+  my $self = __PACKAGE__->SUPER::new(%parms);
   bless $self, $class;
 
   $self->set_label_pattern(

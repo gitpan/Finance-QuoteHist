@@ -1,7 +1,15 @@
 use ExtUtils::MakeMaker;
 
+my %prereq_pm = (
+  'Date::Manip'        => 0,
+  'LWP::UserAgent'     => 0,
+  'HTTP::Request'      => 0,
+  'HTML::TableExtract' => 2.04,
+);
+
 eval "use Text::CSV_XS";
 if ($@) {
+  $prereq_pm{'Text::CSV_PP'} = 0;
   print STDERR <<__MSG;
 Note: This is not required, but installing Text::CSV_XS on your system
       will speed up the parsing of quote data in CSV format. A C
@@ -9,14 +17,14 @@ Note: This is not required, but installing Text::CSV_XS on your system
       Text::CSV_PP.
 __MSG
 }
+else {
+  # why enforce the dependency if we already know it's present? Well, in
+  # the future, we might want to enforce a version dependency here.
+  $prereq_pm{'Text::CSV_XS'} = 0;
+}
 
 WriteMakefile(
-  NAME          => 'Finance-QuoteHist',
-  VERSION_FROM  => 'lib/Finance/QuoteHist.pm',
-  PREREQ_PM => {
-    LWP::UserAgent     => 0,
-    HTTP::Request      => 0,
-    HTML::TableExtract => 2.03,
-    Text::CSV_PP       => 0,
-  },
+  NAME         => 'Finance-QuoteHist',
+  VERSION_FROM => 'lib/Finance/QuoteHist.pm',
+  PREREQ_PM    => \%prereq_pm,
 );

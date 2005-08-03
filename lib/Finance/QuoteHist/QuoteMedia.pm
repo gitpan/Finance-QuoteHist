@@ -19,7 +19,6 @@ sub new {
   my $that = shift;
   my $class = ref($that) || $that;
   my %parms = @_;
-#  my $self = Finance::QuoteHist::Generic->new(%parms);
   my $self = __PACKAGE__->SUPER::new(%parms);
   bless $self, $class;
   $self->parse_mode('csv');
