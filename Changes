@@ -1,5 +1,12 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.03  Wed Nov  2 16:52:30 EST 2005
+    - Minor bug fixes
+    - Forced date calcs to GMT to avoid some cygwin/win errors
+    - Added auto_proxy, enabled during tests so that if $ENV{HTTP_PROXY}
+      is present $ua->env_proxy will be automatically envoked
+    - Tests will skip if network connectivity cannot be established
+
 1.02  Wed Aug  3 14:46:43 EDT 2005
     - Fixed Date::Manip requirement that was inadvertently dropped.
 

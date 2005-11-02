@@ -10,6 +10,7 @@ use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
 
 use Date::Manip;
+Date::Manip::Date_Init("TZ=GMT");
 
 # Example for HTML output:
 #

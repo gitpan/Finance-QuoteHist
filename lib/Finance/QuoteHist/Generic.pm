@@ -11,10 +11,9 @@ use LWP::UserAgent;
 
 use HTTP::Request;
 use Date::Manip;
+Date::Manip::Date_Init("TZ=GMT");
 
-$VERSION = '1.00';
-
-use constant DEBUG => 1;
+$VERSION = '1.03';
 
 my $Default_Target_Mode = 'quote';
 my $Default_Parse_Mode  = 'html';
@@ -38,6 +37,7 @@ my @Scalar_Flags = qw(
   debug
   parse_mode
   target_mode
+  auto_proxy
 );
 my $SF_pat = join('|', @Scalar_Flags);
 
@@ -97,12 +97,18 @@ sub new {
   $parms{adjusted}         = 1  unless defined $parms{adjusted};
   $parms{has_non_adjusted} = 0  unless defined $parms{has_non_adjusted};
   $parms{quote_precision}  = 4  unless defined $parms{quote_precision};
+  $parms{auto_proxy}       = 0  unless defined $parms{auto_proxy};
 
   my $self = \%parms;
   bless $self, $class;
 
   my $ua_params = $parms{ua_params} || {};
-  $ua_params->{env_proxy} = 1 if $parms{env_proxy};
+  if ($parms{env_proxy}) {
+    $ua_params->{env_proxy} = 1;
+  }
+  elsif ($parms{auto_proxy}) {
+    $ua_params->{env_proxy} = 1 if $ENV{HTTP_PROXY};
+  }
   delete $parms{env_proxy};
   $self->{ua} = LWP::UserAgent->new(%$ua_params);
 
@@ -160,7 +166,7 @@ sub fetch {
     last unless $trys;
     print STDERR "Bad fetch",
        $response->is_error ? ' (' . $response->status_line . '), ' : ', ',
-       "trying again...\n" if $self->{verbose};
+       "trying again...\n" if $self->{debug};
     $response = $self->ua->request($request, @_);
     --$trys;
   }
@@ -214,7 +220,7 @@ sub getter {
     my $last_data = '';
     unless ($self->target_worthy(%parms,
                                  target_mode => $target_mode,
-                                 parse_mode => $parse_mode)) {
+                                 parse_mode  => $parse_mode)) {
       ++$empty_fetch{$_} while $_ = pop @symbols;
     }
     SYMBOL: foreach my $s (@symbols) {
@@ -348,8 +354,8 @@ sub getter {
               s%^\s*N/A\s*$%%;
             }
             my $q = $_->[$close_col];
-            if ($q =~ /\d+/) { ++$hcount }
-            else             { ++$zcount }
+            if (defined $q && $q =~ /\d+/) { ++$hcount }
+            else                            { ++$zcount }
           }
           my $pct = $hcount ? 100 * $zcount / ($zcount + $hcount) : 100;
           if (!$trys || $pct >= $self->{zthresh}) {
@@ -382,7 +388,7 @@ sub getter {
       while($champion = $mystic->_summon_champion(@bad_symbols)) {
         print STDERR "Seeing if ", ref $champion, " can get $target_mode\n"
           if $self->{verbose};
-        last if $champion->target_worthy($target_mode);
+        last if $champion->target_worthy(target_mode => $target_mode);
         $mystic = $champion;
         undef $champion;
       }
@@ -782,13 +788,14 @@ sub html_parser {
     else {
       $html_string = $data;
     }
-    my $te = $class->new(
+    my %te_parms = (
       headers => \@patterns,
       automap => 1,
-      debug   => $self->{debug},
-    ) or croak "Problem creating $class\n";
+    );
+    $te_parms{debug} = $self->{debug} if $self->{debug} > 2;
+    my $te = $class->new(%te_parms) or croak "Problem creating $class\n";
     $te->parse($html_string);
-    my $ts = $te->first_table_state_found;
+    my $ts = $te->first_table_found;
     [ $ts ? $ts->rows() : ()];
   }
 }
@@ -1132,6 +1139,11 @@ default is 4.
 When set, instructs the underlying LWP::UserAgent to load proxy
 configuration information from environment variables. See the C<ua()>
 method and L<LWP::UserAgent> for more information.
+
+=item auto_proxy
+
+Same as env_proxy, but tests first to see if $ENV{HTTP_PROXY} is
+present.
 
 =item verbose
 

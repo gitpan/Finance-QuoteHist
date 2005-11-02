@@ -16,3 +16,4 @@ t/dividends.dat
 t/quotes.dat
 t/splits.dat
 t/testload.pm
+META.yml                                 Module meta-data (added by MakeMaker)

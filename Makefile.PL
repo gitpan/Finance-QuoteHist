@@ -5,11 +5,11 @@ my %prereq_pm = (
   'LWP::UserAgent'     => 0,
   'HTTP::Request'      => 0,
   'HTML::TableExtract' => 2.04,
+  'Text::CSV_PP'       => 0,
 );
 
 eval "use Text::CSV_XS";
 if ($@) {
-  $prereq_pm{'Text::CSV_PP'} = 0;
   print STDERR <<__MSG;
 Note: This is not required, but installing Text::CSV_XS on your system
       will speed up the parsing of quote data in CSV format. A C
@@ -20,7 +20,7 @@ __MSG
 else {
   # why enforce the dependency if we already know it's present? Well, in
   # the future, we might want to enforce a version dependency here.
-  $prereq_pm{'Text::CSV_XS'} = 0;
+#  $prereq_pm{'Text::CSV_XS'} = 0;
 }
 
 WriteMakefile(
