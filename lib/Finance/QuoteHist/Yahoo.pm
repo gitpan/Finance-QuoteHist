@@ -1,10 +1,8 @@
 package Finance::QuoteHist::Yahoo;
 
 use strict;
-use vars qw($VERSION @ISA);
+use vars qw(@ISA);
 use Carp;
-
-$VERSION = '1.00';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -33,7 +31,9 @@ Date::Manip::Date_Init("TZ=GMT");
 #
 # Example for CSV output:
 #
-# http://table.finance.yahoo.com/table.csv?s=IBM&a=00&b=2&c=1800&d=04&e=8&f=2005&g=d&ignore=.csv
+# http://ichart.finance.yahoo.com/table.csv?s=IBM&a=00&b=2&c=1800&d=04&e=8&f=2005&g=d&ignore=.csv
+#
+# (historically could use table.finance.yahoo.com as well)
 #
 # Note that Yahoo implements month numbering with Jan=0 and Dec=11.
 #
@@ -148,7 +148,7 @@ sub url_maker {
   my @urls;
   my($host, $cgi);
   if ($parse_mode eq 'csv') {
-    $host = 'table.finance.yahoo.com';
+    $host = 'ichart.finance.yahoo.com';
     $cgi  = 'table.csv';
   }
   else {

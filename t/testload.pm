@@ -40,8 +40,6 @@ my $dividend_file = "$Dat_Dir/dividends.dat";
 my $split_file    = "$Dat_Dir/splits.dat";
 my $csv_file      = "$Dat_Dir/csv.dat";
 
-my $Network_Up;
-
 foreach ($quote_file, $dividend_file, $split_file) {
   -f or die "$_ not found.\n";
 }
@@ -69,10 +67,12 @@ close(F);
 ($Dsym, $Dstart, $Dend) = split(',', shift @Dividends);
 ($Ssym, $Sstart, $Send) = split(',', shift @Splits);
 
+my $Network_Up;
+
 sub network_okay {
   if (! defined $Network_Up) {
     my %ua_parms;
-    if ($ENV{HTTP_PROXY}) {
+    if ($ENV{http_proxy}) {
       $ua_parms{env_proxy} = 1;
     }
     my $ua = LWP::UserAgent->new(%ua_parms)
@@ -90,7 +90,9 @@ sub network_okay {
 
 sub new_quotehist {
   my($symbols, $start_date, $end_date, %parms) = @_;
-  Finance::QuoteHist->new(
+  my $class = $parms{class} || 'Finance::QuoteHist';
+  delete $parms{class};
+  $class->new(
     symbols    => $symbols,
     start_date => $start_date,
     end_date   => $end_date,

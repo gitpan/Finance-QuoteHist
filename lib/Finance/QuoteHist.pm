@@ -8,7 +8,7 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '1.03';
+$VERSION = '1.04';
 
 my @DEFAULT_ENGINES = qw(
 			 Finance::QuoteHist::Yahoo

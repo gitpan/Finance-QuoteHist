@@ -1,10 +1,8 @@
 package Finance::QuoteHist::QuoteMedia;
 
 use strict;
-use vars qw($VERSION @ISA);
+use vars qw(@ISA);
 use Carp;
-
-$VERSION = '1.00';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -41,8 +39,7 @@ sub url_maker {
   }
 
   my $host = 'app.quotemedia.com';
-  my $cgi  = 'data/getHistoryDownload.csv';
-
+  my $cgi  = 'quotetools/getHistoryDownload.csv';
 
   my $make_url_str = sub {
     my($sd, $sm, $sy, $ed, $em, $ey) = @_;

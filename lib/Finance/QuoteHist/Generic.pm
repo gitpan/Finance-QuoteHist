@@ -4,16 +4,14 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
 use strict;
-use vars qw($VERSION);
 use Carp;
 
 use LWP::UserAgent;
 
 use HTTP::Request;
+use URI::Escape;
 use Date::Manip;
 Date::Manip::Date_Init("TZ=GMT");
-
-$VERSION = '1.03';
 
 my $Default_Target_Mode = 'quote';
 my $Default_Parse_Mode  = 'html';
@@ -107,7 +105,7 @@ sub new {
     $ua_params->{env_proxy} = 1;
   }
   elsif ($parms{auto_proxy}) {
-    $ua_params->{env_proxy} = 1 if $ENV{HTTP_PROXY};
+    $ua_params->{env_proxy} = 1 if $ENV{http_proxy};
   }
   delete $parms{env_proxy};
   $self->{ua} = LWP::UserAgent->new(%$ua_params);
@@ -224,10 +222,11 @@ sub getter {
       ++$empty_fetch{$_} while $_ = pop @symbols;
     }
     SYMBOL: foreach my $s (@symbols) {
+      my $safe_symbol = uri_escape($s);
       my $urlmaker = $self->url_maker(
         target_mode => $target_mode,
         parse_mode  => $parse_mode,
-        symbol      => $s,
+        symbol      => $safe_symbol,
       );
       UNIVERSAL::isa($urlmaker, 'CODE') or croak "urlmaker not a code ref.\n";
       my $so_far_so_good = 0;
@@ -1142,7 +1141,7 @@ method and L<LWP::UserAgent> for more information.
 
 =item auto_proxy
 
-Same as env_proxy, but tests first to see if $ENV{HTTP_PROXY} is
+Same as env_proxy, but tests first to see if $ENV{http_proxy} is
 present.
 
 =item verbose
