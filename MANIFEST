@@ -14,6 +14,8 @@ t/30_splits.t
 t/csv.dat
 t/dividends.dat
 t/quotes.dat
+t/quotes_w.dat
+t/quotes_m.dat
 t/splits.dat
 t/testload.pm
 META.yml                                 Module meta-data (added by MakeMaker)

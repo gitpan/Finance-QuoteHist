@@ -1,8 +1,10 @@
 package Finance::QuoteHist::QuoteMedia;
 
 use strict;
-use vars qw(@ISA);
+use vars qw(@ISA $VERSION);
 use Carp;
+
+$VERSION = '1.01';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);

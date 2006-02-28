@@ -1,12 +1,15 @@
 package Finance::QuoteHist::Yahoo;
 
 use strict;
-use vars qw(@ISA);
+use vars qw(@ISA $VERSION);
 use Carp;
+
+$VERSION = '1.02';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
 
+use HTML::TableExtract 2.07;
 use Date::Manip;
 Date::Manip::Date_Init("TZ=GMT");
 
@@ -21,7 +24,7 @@ Date::Manip::Date_Init("TZ=GMT");
 #   * d - end month
 #   * e - end day
 #   * f - end year
-#   * g - resolution (e.g. 'd' is daily)
+#   * g - resolution (e.g. 'd' is daily, 'w' is weekly, 'm' is monthly)
 #   * y is the offset (cursor) from the start date
 #   * z is the number of results to return starting at the cursor (66
 #     maximum, apparently)
@@ -47,6 +50,14 @@ Date::Manip::Date_Init("TZ=GMT");
 #
 # http://finance.yahoo.com/q/hp?s=IBM&a=00&b=2&c=1800&d=04&e=8&f=2005&g=v
 # http://table.finance.yahoo.com/table.csv?s=IBM&a=00&b=2&c=1800&d=04&e=8&f=2005&g=v&ignore=.csv
+#
+# Example URL for weekly:
+#
+# http://finance.yahoo.com/q/hp?s=IBM&a=00&b=2&c=1962&d=01&e=27&f=2006&g=w
+#
+# Example URL for monthly:
+#
+# http://finance.yahoo.com/q/hp?s=IBM&a=00&b=2&c=1962&d=01&e=27&f=2006&g=m
 
 sub new {
   my $that = shift;
@@ -71,20 +82,68 @@ sub new {
 # Yahoo can fetch dividends and splits. They can be extracted from
 # regular quote results or queried directly.
 
-# Not so direct query
+# Newer full-custom direct query for yahoo splits
 sub splits {
+  my $self = shift;
+  my @symbols = @_ ? @_ : $self->symbols;
+  my $target_mode = 'split';
+  my @rows;
+  # cache check
+  my @not_seen;
+  foreach my $symbol (@symbols) {
+    my @r = $self->result_rows($target_mode, $symbol);
+    if (@r) {
+      push(@rows, @r);
+    }
+    else {
+      push(@not_seen, $symbol);
+    }
+  }
+  return @rows unless @not_seen;
+  # example URL: http://finance.yahoo.com/q/bc?s=IBM&t=my
+  foreach my $symbol (@symbols) {
+    my $url = "http://finance.yahoo.com/q/bc?s=$symbol&t=my";
+    print STDERR "Processing ($symbol:$target_mode) $url\n" if $self->{verbose};
+    my $data = $self->{url_cache}{$url} || $self->fetch($self->method, $url);
+    $self->{url_cache}{$url} = $data;
+    print STDERR "Custom parse for ($symbol:$target_mode)\n" if $self->{verbose};
+    my $te = HTML::TableExtract->new(headers => ['Splits:']);
+    $te->parse($data);
+    my($split_line) = grep(defined && /split/i, $te->first_table_found->hrow);
+    $split_line =~ s/^\s*splits:?\s*//i;
+    foreach (grep(/\w+/, split(/\s*,\s+/, $split_line))) {
+      s/\s+$//;
+      my($date, $post, $pre) = /^(\S+).*(\d+):(\d+)/;
+      $date = ParseDate($date) or croak "Problem parsing date string '$date'\n";
+      push(@rows, [$date, $post, $pre]);
+    }
+    @rows = $self->rows(\@rows);
+    $self->_store_results($target_mode, $symbol, 0, \@rows);
+    $self->_target_source($target_mode, $symbol, ref $self);
+  }
+  $self->result_rows($target_mode, @symbols);
+}
+
+# Not so direct splits query
+sub splits_alternate {
   # An HTML quote query is the only way to go for splits on yahoo, so
   # we have to signal to ourselves what the source mode should be so
   # that the _urls() method will generate the proper URL...otherwise
   # we would get CSV, which has no split info.
   my $self = shift;
-  my $parse_mode_orig  = $self->parse_mode;
-  my $target_mode_orig = $self->target_mode;
+  $self->save_query;
   $self->parse_mode('html');
+  $self->start_date(undef, 0);
+  $self->end_date('today', 0);
+  $self->{quiet} = 1;
   $self->target_mode('dividend');
   my $rows = $self->dividends(@_);
-  $self->parse_mode($parse_mode_orig);
-  $self->target_mode($target_mode_orig);
+  if (!@$rows) {
+    $self->target_mode('quote');
+    $self->granularity('monthly');
+    $rows = $self->quotes(@_);
+  }
+  $self->restore_query;
   $self->result_rows('split');
 }
 
@@ -138,6 +197,10 @@ sub url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
+  my $granularity = lc($parms{granularity} || $self->granularity);
+  my $grain = 'd';
+  $granularity =~ /^\s*(\w)/;
+  $grain = $1 if $1 eq 'w' || $1 eq 'm';
   my($ticker, $start_date, $end_date) =
     @parms{qw(symbol start_date end_date)};
   $start_date ||= $self->start_date;
@@ -155,22 +218,25 @@ sub url_maker {
     $host = 'finance.yahoo.com';
     $cgi  = 'q/hp';
   }
-  my $g = $target_mode eq 'quote' ? 'd' : 'v';
-  my($sy, $sm, $sd) = $self->ymd($start_date);
-  my($ey, $em, $ed) = $self->ymd($end_date);
-  # yahoo is 0-based months
-  $sm = sprintf("%02d", $sm - 1);
-  $em = sprintf("%02d", $em - 1);
-  
-  $ticker ||= 'BOOLEAN';
-  my $base_url = "http://$host/$cgi?";
-  my @base_parms = (
-    "a=$sm", "b=$sd", "c=$sy",
-    "d=$em", "e=$ed", "f=$ey",
-    "g=$g", "s=$ticker"
-  );
 
-  if ($parse_mode eq 'html' && $target_mode eq 'quote') {
+  my @base_parms;
+  if ($start_date) {
+    my($y, $m, $d) = $self->ymd($start_date);
+    $m = sprintf("%02d", $m - 1);
+    push(@base_parms, "a=$m", "b=$d", "c=$y");
+  }
+  if ($end_date) {
+    my($y, $m, $d) = $self->ymd($end_date);
+    $m = sprintf("%02d", $m - 1);
+    push(@base_parms, "d=$m", "e=$d", "f=$y");
+  }
+  my $g = $target_mode eq 'quote' ? $grain : 'v';
+  $ticker ||= 'BOOLEAN';
+  push(@base_parms, "g=$g", "s=$ticker");
+  
+  my $base_url = "http://$host/$cgi?";
+
+  if ($parse_mode eq 'html' && $target_mode eq 'quote' || $target_mode eq 'dividend') {
     my $cursor = 0;
     my $window = 66;
     return sub {

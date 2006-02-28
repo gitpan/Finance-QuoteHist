@@ -1,12 +1,12 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         Finance-QuoteHist
-version:      1.04
+version:      1.05
 version_from: lib/Finance/QuoteHist.pm
 installdirs:  site
 requires:
     Date::Manip:                   0
-    HTML::TableExtract:            2.04
+    HTML::TableExtract:            2.07
     HTTP::Request:                 0
     LWP::UserAgent:                0
     Text::CSV_PP:                  0

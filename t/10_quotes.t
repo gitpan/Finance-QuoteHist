@@ -2,23 +2,32 @@ use strict;
 use lib './lib';
 
 my $tcount;
-BEGIN { $tcount = 81 }
+BEGIN { $tcount = 104 }
 use Test::More tests => $tcount;
 
 use FindBin;
 use lib $FindBin::RealBin;
 use testload;
 
-use Finance::QuoteHist;
-
 SKIP: {
-  my($label, $q, @rows);
-  $label = "direct quotes";
   skip("quotes (no connect)", $tcount) unless network_okay();
-  $q = new_quotehist($Qsym, $Qstart, $Qend);
-  @rows = $q->quotes;
-  cmp_ok(scalar @Quotes, '==', scalar @rows, "$label (rows)");
+  my @basis = ($Qsym, $Qstart, $Qend);
+  my %parms;
+  quote_cmp(@basis, "direct quotes (daily)",   \@Quotes);
+  $parms{granularity} = 'weekly';
+  quote_cmp(@basis, "direct quotes (weekly)",  \@Quotes_W, %parms);
+  $parms{granularity} = 'monthly';
+  quote_cmp(@basis, "direct quotes (monthly)", \@Quotes_M, %parms);
+}
+
+sub quote_cmp {
+  @_ >= 5 or die "Problem with args\n";
+  my($symbol, $start_date, $end_date, $label, $quotes, %parms) = @_;
+  my $q = new_quotehist($symbol, $start_date, $end_date, %parms);
+  my @rows = $q->quotes;
+  cmp_ok(scalar @$quotes, '==', scalar @rows, "$label (rows)");
   foreach (0 .. $#rows) {
-    cmp_ok(join(':', @{$rows[$_]}), 'eq', $Quotes[$_], "$label (row content)");
+    cmp_ok(join(':', @{$rows[$_]}), 'eq', $quotes->[$_],
+           "$label (row content)");
   }
 }

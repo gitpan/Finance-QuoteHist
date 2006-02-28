@@ -6,15 +6,19 @@ $Data::Dumper::Indent = 1;
 use strict;
 use Carp;
 
+use vars qw($VERSION);
+
+$VERSION = '1.05';
+
 use LWP::UserAgent;
 
 use HTTP::Request;
-use URI::Escape;
 use Date::Manip;
 Date::Manip::Date_Init("TZ=GMT");
 
 my $Default_Target_Mode = 'quote';
 my $Default_Parse_Mode  = 'html';
+my $Default_Granularity = 'daily';
 my %Default_Labels;
 $Default_Labels{quote}{$Default_Parse_Mode} =
   [qw( date open high low close vol )];
@@ -35,6 +39,7 @@ my @Scalar_Flags = qw(
   debug
   parse_mode
   target_mode
+  granularity
   auto_proxy
 );
 my $SF_pat = join('|', @Scalar_Flags);
@@ -96,6 +101,7 @@ sub new {
   $parms{has_non_adjusted} = 0  unless defined $parms{has_non_adjusted};
   $parms{quote_precision}  = 4  unless defined $parms{quote_precision};
   $parms{auto_proxy}       = 0  unless defined $parms{auto_proxy};
+  $parms{debug}            = 0  unless defined $parms{debug};
 
   my $self = \%parms;
   bless $self, $class;
@@ -150,14 +156,12 @@ sub method   { 'GET' }
 
 sub fetch {
   # HTTP::Request and LWP::UserAgent Wrangler
-  my $self = shift;
-  my $mode = shift;
-  $mode or croak "Request mode required\n";
-  my $url  = shift;
+  my($self, $method, $url) = splice(@_, 0, 3);
+  $method or croak "Request method required\n";
   $url or croak "URL required\n";
 
   my $trys = $self->{attempts};
-  my $request = HTTP::Request->new($mode, $url);
+  my $request = HTTP::Request->new($method, $url);
   my $response = $self->ua->request($request, @_);
   $self->{_lwp_success} = 0;
   while (! $response->is_success) {
@@ -222,11 +226,10 @@ sub getter {
       ++$empty_fetch{$_} while $_ = pop @symbols;
     }
     SYMBOL: foreach my $s (@symbols) {
-      my $safe_symbol = uri_escape($s);
       my $urlmaker = $self->url_maker(
         target_mode => $target_mode,
         parse_mode  => $parse_mode,
-        symbol      => $safe_symbol,
+        symbol      => $s,
       );
       UNIVERSAL::isa($urlmaker, 'CODE') or croak "urlmaker not a code ref.\n";
       my $so_far_so_good = 0;
@@ -257,7 +260,7 @@ sub getter {
           else {
             $last_data = $data;
           }
-          $rows = $self->rows($data, @column_labels);
+          $rows = $self->rows($self->parser->($data));
           last URL if $so_far_so_good && !@$rows;
           --$trys;
         } while !@$rows && $trys && $self->{_lwp_success};
@@ -272,6 +275,7 @@ sub getter {
           # they are defunct, which is dealt with later.
           if (!$self->{_lwp_success} || !defined $data) {
             ++$empty_fetch{$s};
+            @$rows = ();
           }
           elsif ($self->{_lwp_success} && !@$rows) {
             ++$empty_fetch{$s};
@@ -314,65 +318,71 @@ sub getter {
           $rows = \@filtered;
         }
 
-        # Normalization. Saving the rounding operations until after the
-        # adjust routine is deliberate since we don't want to be
-        # auto-adjusting pre-rounded numbers.
-        $self->number_normalize_rows($rows);
+        if (@$rows) {
+          # Normalization. Saving the rounding operations until after
+          # the adjust routine is deliberate since we don't want to be
+          # auto-adjusting pre-rounded numbers.
+          $self->number_normalize_rows($rows);
   
-        # Do the same for the extraction rows, plus store the
-        # extracted rows
-        foreach my $mode (keys %extractions) {
-          $self->target_mode($mode);
-          $self->number_normalize_rows($extractions{$mode});
-          $self->target_source($mode, $s, ref $self);
-          $self->_store_results($mode, $s, $dcol, $extractions{$mode});
-        }
-        $self->target_mode($target_mode);
+          # Do the same for the extraction rows, plus store the
+          # extracted rows
+          foreach my $mode (keys %extractions) {
+            $self->target_mode($mode);
+            $self->number_normalize_rows($extractions{$mode});
+            $self->_target_source($mode, $s, ref $self);
+            $self->_store_results($mode, $s, $dcol, $extractions{$mode});
+          }
+          # restore original target mode
+          $self->target_mode($target_mode);
   
-        if ($target_mode eq 'quote' && @$rows) {
-          my $count = @$rows;
-          @$rows = grep(! $self->non_quote_row($_), @$rows);
-          if ($self->{verbose}) {
-            if ($count == @$rows) {
-              print STDERR "$s Retained $count rows\n";
+          if ($target_mode eq 'quote') {
+            my $count = @$rows;
+            @$rows = grep($self->is_quote_row($_) &&
+                          $self->row_not_seen($s, $_), @$rows);
+            if ($self->{verbose}) {
+              if ($count == @$rows) {
+                print STDERR "$s Retained $count rows\n";
+              }
+              else {
+                print STDERR "$s Retained $count raw rows, trimmed to ",
+                  scalar @$rows, " rows due to noise\n";
+              }
+            }
+  
+            # zcount is an attempt to capture null values; if there are
+            # too many we assume there is something wrong with the
+            # remote data
+            my $close_col = $self->label_column('close');
+            my($zcount, $hcount) = (0,0);
+            foreach (@$rows) {
+              foreach (@$_) {
+                # Sometimes N/A appears
+                s%^\s*N/A\s*$%%;
+              }
+              my $q = $_->[$close_col];
+              if (defined $q && $q =~ /\d+/) { ++$hcount }
+              else                            { ++$zcount }
+            }
+            my $pct = $hcount ? 100 * $zcount / ($zcount + $hcount) : 100;
+            if (!$trys || $pct >= $self->{zthresh}) {
+              ++$empty_fetch{$s} unless $saw_good_rows{$s};
             }
             else {
-              print STDERR "$s Retained $count raw rows\n, trimmed to ",
-                 scalar @$rows, " rows due to noise\n";
+              # For defunct symbols, we could conceivably get quotes
+              # over a date range that contains blocks of time where the
+              # ticker was actively traded, as well as blocks of time
+              # where the ticker doesn't exist. If we got good data over
+              # some of the blocks, then we take note of it so we don't
+              # toss the whole set of queries for this symbol.
+              ++$saw_good_rows{$s};
             }
+            $self->precision_normalize_rows($rows)
+              if @$rows && $self->{quote_precision};
           }
-  
-          # zcount is an attempt to capture null values; if there are
-          # too many we assume there is something wrong with the remote
-          # data
-          my $close_col = $self->label_column('close');
-          my($zcount, $hcount) = (0,0);
-          foreach (@$rows) {
-            foreach (@$_) {
-              # Sometimes N/A appears
-              s%^\s*N/A\s*$%%;
-            }
-            my $q = $_->[$close_col];
-            if (defined $q && $q =~ /\d+/) { ++$hcount }
-            else                            { ++$zcount }
-          }
-          my $pct = $hcount ? 100 * $zcount / ($zcount + $hcount) : 100;
-          if (!$trys || $pct >= $self->{zthresh}) {
-            ++$empty_fetch{$s} unless $saw_good_rows{$s};
-          }
-          else {
-            # For defunct symbols, we could conceivably get quotes over a
-            # date range that contains blocks of time where the ticker was
-            # actively traded, as well as blocks of time where the ticker
-            # doesn't exist. If we got good data over some of the blocks,
-            # then we take note of it so we don't toss the whole set of
-            # queries for this symbol.
-            ++$saw_good_rows{$s};
-          }
-          $self->precision_normalize_rows($rows) if $self->{quote_precision};
+          last URL if !$ecount && !@$rows;
+          $self->_store_results($target_mode, $s, $dcol, $rows) if @$rows;
+          $self->_target_source($target_mode, $s, ref $self);
         }
-        $self->_store_results($target_mode, $s, $dcol, $rows);
-        $self->target_source($target_mode, $s, ref $self);
       }
     }
   
@@ -399,8 +409,8 @@ sub getter {
         # these symbols (including extracted info).
         foreach my $mode ($champion->result_modes) {
           foreach my $symbol ($champion->result_symbols($mode)) {
-            $self->target_source($mode, $_,
-                                 $champion->target_source($mode, $_));
+            $self->_target_source($mode, $_,
+                                 $champion->_target_source($mode, $_));
             $self->_store_results($mode, $symbol, $dcol,
                                   $self->results($mode, $symbol));
           }
@@ -441,9 +451,10 @@ sub _store_results {
 
 sub result_rows {
   my($self, $target_mode, @symbols) = @_;
+  $target_mode ||= $self->target_mode;
   @symbols = $self->result_symbols($target_mode) unless @symbols;
   my @rows;
-  foreach my $symbol ($self->result_symbols($target_mode)) {
+  foreach my $symbol (@symbols) {
     my $results = $self->results($target_mode, $symbol);
     foreach my $date (sort keys %$results) {
       push(@rows, [$symbol, $date, @{$results->{$date}}]);
@@ -455,14 +466,8 @@ sub result_rows {
 sub extractors { () }
 
 sub rows {
-  my($self, $data_string) = @_;
-
-  unless ($data_string) {
-    return wantarray ? () : [];
-  }
-
-  my $rows = $self->parser->($data_string);
-
+  my($self, $rows) = @_;
+  return wantarray ? () : [] unless $rows;
   my $rc = @$rows;
   print STDERR "Got $rc raw rows\n" if $self->{verbose};
 
@@ -529,8 +534,21 @@ sub date_normalize_rows {
 sub date_normalize {
   my($self, $date) = @_;
   return unless $date;
-  my $d = ParseDate($date);
-  join('/', $self->ymd($d));
+  my $normal_date;
+  if ($self->granularity eq 'monthly' &&
+      $date =~ m{^\s*(\D+)[-/]+(\d{2,})\s*$}) {
+    my($m, $y) = ($1, $2);
+    $y += 1900 if length $y == 2;
+    $normal_date = ParseDate("$y$m");
+    ($m, $y) = UnixDate($normal_date, '%m', '%Y');
+    my $last = Date_DaysInMonth($m, $y);
+    $normal_date = ParseDate("$y/$m/$last");
+  }
+  else {
+    $normal_date = ParseDate($date);
+  }
+  $normal_date or return undef;
+  join('/', $self->ymd($normal_date));
 }
 
 sub number_normalize_rows {
@@ -559,27 +577,38 @@ sub precision_normalize_rows {
   foreach my $row (@$rows) {
     $row->[$_] = sprintf("%.$self->{quote_precision}f", $row->[$_])
       foreach @columns;
-    $row->[$vol_col] = sprintf("%d", $row->[$vol_col]);
+    $row->[$vol_col] = sprintf("%u", $row->[$vol_col]);
   }
   $rows;
 }
 
 ### Single row filters
 
-sub non_quote_row {
+sub is_quote_row {
   my($self, $row, $dcol) = @_;
   ref $row or croak "Row ref required\n";
   # Skip date in first field
   $dcol = $self->label_column('date') unless defined $dcol;
-  my @non_quotes;
   foreach (0 .. $#$row) {
     next if $_ == $dcol;
     next if $row->[$_] =~ /^\s*$/;
     if ($row->[$_] !~ /^\s*\$*[\d\.,]+\s*$/) {
-      return $row;
+      return 0;
     }
   }
-  0;
+  1;
+}
+
+sub row_not_seen {
+  my($self, $symbol, $row, $dcol) = @_;
+  ref $row or croak "Row ref required\n";
+  $symbol or croak "ticker symbol required\n";
+  my $mode = $self->target_mode;
+  my $res = $self->{results}{$mode} or return 1;
+  my $mres = $res->{$symbol} or return 1;
+  $dcol = $self->label_column('date') unless defined $dcol;
+  $mres->{$row->[$dcol]} or return 1;
+  return 0;
 }
 
 sub date_in_range {
@@ -594,8 +623,8 @@ sub date_in_range {
 ### Label and label mapping/extraction management
 
 sub default_target_mode { $Default_Target_Mode }
-
 sub default_parse_mode { $Default_Parse_Mode  }
+sub default_granularity { $Default_Granularity }
 
 sub set_label_pattern {
   my $self = shift;
@@ -612,7 +641,8 @@ sub set_label_pattern {
     delete $self->{label_map};
     delete $self->{pattern_map};
   }
-  my $pat = $l2p->{$label} ||= qr/^\s*$label/i;
+  my $pat = $l2p->{$label} ||= ($label =~ /vol/i ?
+                                  qr/\s*$label/i : qr/^\s*$label/i);
   $p2l->{$pat} ||= $label;
   $pat;
 }
@@ -755,6 +785,14 @@ sub target_mode {
   $self->{target_mode} || $self->default_target_mode;
 }
 
+sub granularity {
+  my $self = shift;
+  if (@_) {
+    $self->{granularity} = shift;
+  }
+  $self->{granularity} || $self->default_granularity;
+}
+
 ### Parser methods
 
 sub parser {
@@ -865,19 +903,25 @@ sub csv_parser {
 ### Accessors, generators
 
 sub start_date {
-  my($self, $start_date) = @_;
-  if ($start_date) {
-    $self->clear_cache;
-    $self->{start_date} = $self->date_standardize($start_date);
+  my $self = shift;
+  if (@_) {
+    my $start_date = shift;
+    my $clear = @_ ? shift : 1;
+    $self->clear_cache if $clear;
+    $self->{start_date} = defined $start_date ?
+      $self->date_standardize($start_date) : undef;
   }
   $self->{start_date};
 }
 
 sub end_date {
-  my($self, $end_date) = @_;
-  if ($end_date) {
-    $self->clear_cache;
-    $self->{end_date} = $self->date_standardize($end_date);
+  my $self = shift;
+  if (@_) {
+    my $end_date = shift;
+    my $clear = @_ ? shift : 1;
+    $self->clear_cache if $clear;
+    $self->{end_date} = defined $end_date ?
+      $self->date_standardize($end_date) : undef;
   }
   $self->{end_date};
 }
@@ -952,6 +996,10 @@ sub results {
   $self->{results}{$target_mode}{$symbol};
 }
 
+sub quote_source    { shift->source(shift, 'quote') }
+sub dividend_source { shift->source(shift, 'dividend') }
+sub split_source    { shift->source(shift, 'split') }
+
 sub source {
   my($self, $symbol, $target_mode) = @_;
   croak "Ticker symbol required\n" unless $symbol;
@@ -959,7 +1007,7 @@ sub source {
   $self->{sources}{$target_mode}{$symbol};
 }
 
-sub target_source {
+sub _target_source {
   my($self, $target_mode, $symbol, $source) = @_;
   croak "Target mode required\n"   unless $target_mode;
   croak "Ticker symbol required\n" unless $symbol;
@@ -996,6 +1044,23 @@ sub _summon_champion {
 }
 
 ### Toolbox
+
+sub save_query    { shift->_save_restore_query(1) }
+sub restore_query { shift->_save_restore_query(0) }
+sub _save_restore_query {
+  my($self, $save) = @_;
+  $save = 1 unless defined $save;
+  foreach (qw(parse_mode target_mode start_date end_date granularity quiet)) {
+    my $qstr = "_query_$_";
+    if ($save) {
+      $self->{$qstr} = $self->{$_};
+    }
+    else {
+      $self->{$_} = $self->{$qstr} if exists $self->{$qstr};
+    }
+  }
+  $self;
+}
 
 sub ymd {
   my $self = shift;
@@ -1100,6 +1165,11 @@ Indicates which ticker symbols to include in the search for historical
 quotes. Passed either as a string (for single ticker) or an array ref
 for multiple tickers.
 
+=item granularity
+
+Returns rows at daily, weekly, or montly levels of granularity.
+Defaults to daily.
+
 =item attempts
 
 Sets how persistently the module tries to retrieve the quotes. There are
@@ -1198,11 +1268,15 @@ via direct query or incidental extraction, they are cached. This cache
 is cleared by invoking this method directly, by resetting the boundary
 dates of the query, or by changing the C<adjusted()> setting.
 
-=item source(ticker_symbol, target)
+=item quote_source(ticker_symbol)
 
-After query, this method can be used to find out which particular
+=item dividend_source(ticker_symbol)
+
+=item split_source(ticker_symbol)
+
+After query, these methods can be used to find out which particular
 subclass in the B<lineup> fulfilled the corresponding request for a
-particular target (quote (default), dividend, or split).
+particular ticker symbol.
 
 =back
 

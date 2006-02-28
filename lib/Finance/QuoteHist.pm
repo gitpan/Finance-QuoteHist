@@ -8,7 +8,7 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '1.04';
+$VERSION = '1.05';
 
 my @DEFAULT_ENGINES = qw(
 			 Finance::QuoteHist::Yahoo
@@ -16,8 +16,7 @@ my @DEFAULT_ENGINES = qw(
 			);
 
 sub new {
-  my $that  = shift;
-  my $class = ref($that) || $that;
+  my $class = shift;
   my %parms = @_;
   if (!$parms{lineup}) {
     $parms{lineup} = [@DEFAULT_ENGINES];

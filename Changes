@@ -1,5 +1,12 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.05  Tue Feb 28 16:47:57 EST 2006
+    - Splits now have no dependencies on dividend queries
+    - Daily, Weekly, Monthly granularities available
+    - Restored quote_source(), dividend_source(), and
+      split_source() methods
+    - More tests added
+
 1.04  Fri Jan  6 12:18:59 EST 2006
     - Compensated for yahoo symbol switch from ^DJA to ^DJI, which was
       causing some tests to fail.

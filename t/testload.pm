@@ -6,10 +6,13 @@ use File::Spec;
 use LWP::UserAgent;
 use HTTP::Request;
 
+use Finance::QuoteHist;
+
 use vars qw( @ISA @EXPORT $Dat_Dir
              @Quotes    $Qsym $Qstart $Qend
              @Dividends $Dsym $Dstart $Dend
              @Splits    $Ssym $Sstart $Send
+             @Quotes_W @Quotes_M $Q_Grain
              $CSV
            );
 
@@ -20,6 +23,7 @@ require Exporter;
              @Quotes    $Qsym $Qstart $Qend
              @Dividends $Dsym $Dstart $Dend
              @Splits    $Ssym $Sstart $Send
+             @Quotes_W @Quotes_M $Q_Grain
              $CSV
              network_okay new_quotehist
             );
@@ -36,17 +40,29 @@ BEGIN {
 $Dat_Dir = $base_dir;
 
 my $quote_file    = "$Dat_Dir/quotes.dat";
+my $quote_w_file  = "$Dat_Dir/quotes_w.dat";
+my $quote_m_file  = "$Dat_Dir/quotes_m.dat";
 my $dividend_file = "$Dat_Dir/dividends.dat";
 my $split_file    = "$Dat_Dir/splits.dat";
 my $csv_file      = "$Dat_Dir/csv.dat";
 
-foreach ($quote_file, $dividend_file, $split_file) {
-  -f or die "$_ not found.\n";
-}
+-f or die "$_ not found.\n"
+  foreach ($quote_file, $quote_w_file, $quote_m_file,
+           $dividend_file, $split_file);
 
 open(F, "<$quote_file") or die "Problem reading $quote_file : $!\n";
 @Quotes = <F>;
 chomp @Quotes;
+close(F);
+
+open(F, "<$quote_w_file") or die "Problem reading $quote_w_file : $!\n";
+@Quotes_W = <F>;
+chomp @Quotes_W;
+close(F);
+
+open(F, "<$quote_m_file") or die "Problem reading $quote_m_file : $!\n";
+@Quotes_M = <F>;
+chomp @Quotes_M;
 close(F);
 
 open(F, "<$dividend_file") or die "Problem reading $dividend_file : $!\n";
@@ -66,6 +82,10 @@ close(F);
 ($Qsym, $Qstart, $Qend) = split(',', shift @Quotes);
 ($Dsym, $Dstart, $Dend) = split(',', shift @Dividends);
 ($Ssym, $Sstart, $Send) = split(',', shift @Splits);
+
+# currently we share the same symbol, start, end as @Quotes
+shift @Quotes_W;
+shift @Quotes_M;
 
 my $Network_Up;
 

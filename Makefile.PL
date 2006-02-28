@@ -4,7 +4,7 @@ my %prereq_pm = (
   'Date::Manip'        => 0,
   'LWP::UserAgent'     => 0,
   'HTTP::Request'      => 0,
-  'HTML::TableExtract' => 2.04,
+  'HTML::TableExtract' => 2.07,
   'Text::CSV_PP'       => 0,
 );
 
