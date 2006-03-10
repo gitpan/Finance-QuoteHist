@@ -8,7 +8,7 @@ use Carp;
 
 use vars qw($VERSION);
 
-$VERSION = '1.05';
+$VERSION = '1.06';
 
 use LWP::UserAgent;
 
@@ -543,6 +543,8 @@ sub date_normalize {
     ($m, $y) = UnixDate($normal_date, '%m', '%Y');
     my $last = Date_DaysInMonth($m, $y);
     $normal_date = ParseDate("$y/$m/$last");
+    $normal_date = Date_PrevWorkDay($normal_date)
+      unless Date_IsWorkDay($normal_date);
   }
   else {
     $normal_date = ParseDate($date);
@@ -854,8 +856,11 @@ sub csv_parser {
   sub {
     my $data = shift;
     my @csv_lines = ref $data ? <$data> : split("\n", $data);
-    chomp @csv_lines;
+    # might be unix, windows, or mac style newlines
+    s/\s+$// foreach @csv_lines;
     return [] if !@csv_lines || $csv_lines[0] =~ /(no data)|error/i;
+    # attempt to get rid of comments at front of csv data
+    shift @csv_lines until $csv_lines[0] =~ /date|\d+/i || !@csv_lines;
     my $first_line = $csv_lines[0];
     my $sep_char = $first_line =~ /date\s*(\S)/i ? $1 : ',';
     my $cp = $class->new({sep_char => $sep_char})
@@ -863,8 +868,8 @@ sub csv_parser {
     my @pat_slice;
     if ($first_line =~ /date/i) {
       # derive column detection and ordering
-      $cp->parse($first_line) or croak "Problem parsing (" .
-        $cp->error_input . ")\n";
+      $cp->parse($first_line) or croak ("Problem parsing (" .
+        $cp->error_input . ")\n");
       my @headers = $cp->fields;
       my @pats = @patterns;
       my @labels = map($self->pattern_label(pattern => $_), @patterns);
@@ -1167,8 +1172,8 @@ for multiple tickers.
 
 =item granularity
 
-Returns rows at daily, weekly, or montly levels of granularity.
-Defaults to daily.
+Returns rows at 'daily', 'weekly', or 'monthly' levels of granularity.
+Defaults to 'daily'.
 
 =item attempts
 
@@ -1359,7 +1364,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2005 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2006 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

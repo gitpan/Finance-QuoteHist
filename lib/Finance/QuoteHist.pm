@@ -8,11 +8,12 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '1.05';
+$VERSION = '1.06';
 
 my @DEFAULT_ENGINES = qw(
 			 Finance::QuoteHist::Yahoo
 			 Finance::QuoteHist::QuoteMedia
+			 Finance::QuoteHist::MSN
 			);
 
 sub new {
@@ -156,7 +157,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2005 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2006 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

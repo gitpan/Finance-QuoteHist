@@ -1,5 +1,12 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.06  Fri Mar 10 15:59:05 EST 2006
+    - Added MSN quote source.
+    - Fixed some edge cases involving null-queries on splits.
+    - Various minor fixes, including proper business-day calculations
+      for end of month dates on montly resolutions, plus proper newline
+      stripping (chomp didn't work on MSN csv).
+
 1.05  Tue Feb 28 16:47:57 EST 2006
     - Splits now have no dependencies on dividend queries
     - Daily, Weekly, Monthly granularities available

@@ -4,7 +4,7 @@ use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.02';
+$VERSION = '1.03';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -87,21 +87,14 @@ sub splits {
   my $self = shift;
   my @symbols = @_ ? @_ : $self->symbols;
   my $target_mode = 'split';
-  my @rows;
   # cache check
   my @not_seen;
   foreach my $symbol (@symbols) {
     my @r = $self->result_rows($target_mode, $symbol);
-    if (@r) {
-      push(@rows, @r);
-    }
-    else {
-      push(@not_seen, $symbol);
-    }
+    push(@not_seen, $symbol) unless @r;
   }
-  return @rows unless @not_seen;
   # example URL: http://finance.yahoo.com/q/bc?s=IBM&t=my
-  foreach my $symbol (@symbols) {
+  foreach my $symbol (@not_seen) {
     my $url = "http://finance.yahoo.com/q/bc?s=$symbol&t=my";
     print STDERR "Processing ($symbol:$target_mode) $url\n" if $self->{verbose};
     my $data = $self->{url_cache}{$url} || $self->fetch($self->method, $url);
@@ -109,17 +102,23 @@ sub splits {
     print STDERR "Custom parse for ($symbol:$target_mode)\n" if $self->{verbose};
     my $te = HTML::TableExtract->new(headers => ['Splits:']);
     $te->parse($data);
-    my($split_line) = grep(defined && /split/i, $te->first_table_found->hrow);
-    $split_line =~ s/^\s*splits:?\s*//i;
-    foreach (grep(/\w+/, split(/\s*,\s+/, $split_line))) {
-      s/\s+$//;
-      my($date, $post, $pre) = /^(\S+).*(\d+):(\d+)/;
-      $date = ParseDate($date) or croak "Problem parsing date string '$date'\n";
-      push(@rows, [$date, $post, $pre]);
+    my $table = $te->first_table_found;
+    if ($table) {
+      my($split_line) = grep(defined && /split/i, $table->hrow);
+      $split_line =~ s/^\s*splits:?\s*//i;
+      my @rows;
+      foreach (grep(/\w+/, split(/\s*,\s+/, $split_line))) {
+        s/\s+$//;
+        next if /none/i;
+        my($date, $post, $pre) = /^(\S+).*(\d+):(\d+)/;
+        $date = ParseDate($date)
+          or croak "Problem parsing date string '$date'\n";
+        push(@rows, [$date, $post, $pre]);
+      }
+      @rows = $self->rows(\@rows);
+      $self->_store_results($target_mode, $symbol, 0, \@rows);
+      $self->_target_source($target_mode, $symbol, ref $self);
     }
-    @rows = $self->rows(\@rows);
-    $self->_store_results($target_mode, $symbol, 0, \@rows);
-    $self->_target_source($target_mode, $symbol, ref $self);
   }
   $self->result_rows($target_mode, @symbols);
 }
@@ -394,7 +393,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2005 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2006 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself.
 

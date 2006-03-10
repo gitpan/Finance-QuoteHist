@@ -1,10 +1,10 @@
-package Finance::QuoteHist::QuoteMedia;
+package Finance::QuoteHist::MSN;
 
 use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.02';
+$VERSION = '1.00';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -14,7 +14,13 @@ Date::Manip::Date_Init("TZ=GMT");
 
 # Example URL:
 #
-# http://app.quotemedia.com/data/getHistoryDownload.csv?symbol=IBM&startDay=2&startMonth=4&startYear=2004&endDay=2&endMonth=5&endYear=2005
+# HTML:
+# http://moneycentral.msn.com/investor/charts/chartdl.asp?Symbol=ibm&CP=0&PT=5&C5=1&C6=&C7=1&C8=&C9=0&CE=0&CompSyms=&D4=1&D5=0&D7=&D6=&D3=0&ShowTablBt=Show+Table
+#
+# CSV:
+# http://data.moneycentral.msn.com/scripts/chrtsrv.dll?Symbol=ibm&FileDownload=&C1=2&C2=&C5=1&C6=1980&C7=12&C8=1995&C9=0&CE=0&CF=0&D3=0&D4=1&D5=0
+#
+# Looks like about a 4 year window on csv
 
 sub new {
   my $that = shift;
@@ -32,6 +38,12 @@ sub url_maker {
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
   return undef unless $target_mode eq 'quote' && $parse_mode eq 'csv';
+  my $granularity = lc($parms{granularity} || $self->granularity);
+  # C9 = 0, 1, or 2 (also 3 but we don't use that)
+  my $grain = 0;
+  $granularity =~ /^\s*(\w)/;
+  if    ($1 eq 'w') { $grain = 1 }
+  elsif ($1 eq 'm') { $grain = 2 }
   my($ticker, $start_date, $end_date) =
     @parms{qw(symbol start_date end_date)};
   $start_date ||= $self->start_date;
@@ -40,16 +52,19 @@ sub url_maker {
     ($start_date, $end_date) = ($end_date, $start_date);
   }
 
-  my $host = 'app.quotemedia.com';
-  my $cgi  = 'quotetools/getHistoryDownload.csv';
+  my $host = 'data.moneycentral.msn.com';
+  my $cgi  = 'scripts/chrtsrv.dll';
 
   my $make_url_str = sub {
     my($sd, $sm, $sy, $ed, $em, $ey) = @_;
     my $base_url = "http://$host/$cgi?";
     my @base_parms = (
-      "symbol=$ticker",
-      "startDay=$sd", "startMonth=$sm", "startYear=$sy",
-      "endDay=$ed",   "endMonth=$em",   "endYear=$ey"
+      "Symbol=$ticker",
+      "FileDownload=",
+      "C1=2", "C2=", 
+      "C5=$sm", "C6=$sy",
+      "C7=$em", "C8=$ey",
+      "C9=$grain", "CE=0", "CF=0", "D3=0", "D4=1", "D5=0"
     );
     $base_url .  join('&', @base_parms);
   };
@@ -57,9 +72,20 @@ sub url_maker {
   if ($start_date) {
     my($sy, $sm, $sd) = $self->ymd($start_date);
     my($ey, $em, $ed) = $self->ymd($end_date);
-    $sm -= 1; $em -= 1;
-    my @urls = $make_url_str->($sd, $sm, $sy, $ed, $em, $ey);
-    return sub { pop @urls };
+    my $year_left = $sy;
+    return sub {
+      my $year_right = $year_left + 3;
+      $year_right = $ey if $year_right > $ey;
+      my $url;
+      if ($year_left <= $ey) {
+        my $url = $make_url_str->($sd, $sm, $year_left, $ed, $em, $year_right);
+        $year_left += 3;
+        return $url;
+      }
+      else { 
+        return undef;
+      }
+    }
   }
   else {
     # use year chunks
@@ -68,7 +94,7 @@ sub url_maker {
     my($sm, $sd) = (0, 1);
     return sub {
       my $url = $make_url_str->($sd, $sm, $year, $ed, $em, $year);
-      --$year;
+      $year -= 4;
       $em = 11; $ed = 31;
       $url;
     }
