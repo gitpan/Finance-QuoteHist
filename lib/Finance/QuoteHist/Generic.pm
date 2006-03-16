@@ -8,7 +8,7 @@ use Carp;
 
 use vars qw($VERSION);
 
-$VERSION = '1.06';
+$VERSION = '1.07';
 
 use LWP::UserAgent;
 
@@ -58,7 +58,7 @@ sub new {
   my $class = ref($that) || $that;
   my(@pass, %parms, $k, $v);
   while (($k,$v) = splice(@_, 0, 2)) {
-    if ($k eq 'start_date' || $k eq 'end_date') {
+    if ($k eq 'start_date' || $k eq 'end_date' && $v !~ /^\s*$/) {
       my $d = ParseDate($v);
       $d or croak "Could not parse date $d\n";
       $d =~ s/\d\d:.*//;
@@ -1072,30 +1072,34 @@ sub ymd {
   shift =~ /^\s*(\d{4})(\d{2})(\d{2})/o;
 }
 
-sub make_date_pairs {
-  my ($self, $start_date, $end_date, $increment) = @_;
-  $start_date && $end_date or croak "start date and end date required.\n";
-  $increment or croak "Increment > 0 required\n";
-
-  # Make sure date boundaries are pre-sorted.
-  if ($start_date gt $end_date) {
+sub date_iterator {
+  my $self = shift;
+  my %parms = @_;
+  my $start_date = $parms{start_date};
+  my $end_date   = $parms{end_date} || 'today';
+  my $increment  = $parms{increment};
+  my $units      = $parms{units} || 'days';
+  $increment && $increment > 0 or croak "Increment > 0 required\n";
+  $start_date = ParseDate($start_date) if $start_date;
+  $end_date   = ParseDate($end_date)   if $end_date;
+  if ($start_date && $start_date gt $end_date) {
     ($start_date, $end_date) = ($end_date, $start_date);
   }
-
-  my %date_pairs;
-  my $high_date;
-
-  while (1) {
-    $high_date = DateCalc($start_date,  "+ $increment days");
-    last if Date_Cmp($high_date, $end_date) == 1;
-    $date_pairs{$start_date} = $high_date;
-    $start_date = DateCalc($high_date, '+ 1 day');
+  my($low_date, $high_date);
+  $high_date = $end_date;
+  sub {
+    return () unless $end_date;
+    $low_date = DateCalc($high_date, "- $increment $units");
+    if ($start_date && $low_date lt $start_date) {
+      $low_date = $start_date;
+      undef $start_date;
+      undef $end_date;
+      return () if $low_date eq $high_date;
+    }
+    my @date_pair = ($low_date, $high_date);
+    $high_date = $low_date;
+    @date_pair;
   }
-
-  # Last query block only needs to extend to end_date
-  $date_pairs{$start_date} = $end_date;
-
-  return \%date_pairs;
 }
 
 1;

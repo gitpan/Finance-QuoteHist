@@ -48,15 +48,14 @@ sub url_maker {
     @parms{qw(symbol start_date end_date)};
   $start_date ||= $self->start_date;
   $end_date   ||= $self->end_date;
-  if ($start_date && $end_date && $start_date gt $end_date) {
-    ($start_date, $end_date) = ($end_date, $start_date);
-  }
 
   my $host = 'data.moneycentral.msn.com';
   my $cgi  = 'scripts/chrtsrv.dll';
 
-  my $make_url_str = sub {
-    my($sd, $sm, $sy, $ed, $em, $ey) = @_;
+  my $url_str_maker = sub {
+    my($d1, $d2) = @_;
+    my($sy, $sm, $sd) = $self->ymd($d1);
+    my($ey, $em, $ed) = $self->ymd($d2);
     my $base_url = "http://$host/$cgi?";
     my @base_parms = (
       "Symbol=$ticker",
@@ -69,35 +68,18 @@ sub url_maker {
     $base_url .  join('&', @base_parms);
   };
 
-  if ($start_date) {
-    my($sy, $sm, $sd) = $self->ymd($start_date);
-    my($ey, $em, $ed) = $self->ymd($end_date);
-    my $year_left = $sy;
-    return sub {
-      my $year_right = $year_left + 3;
-      $year_right = $ey if $year_right > $ey;
-      my $url;
-      if ($year_left <= $ey) {
-        my $url = $make_url_str->($sd, $sm, $year_left, $ed, $em, $year_right);
-        $year_left += 3;
-        return $url;
-      }
-      else { 
-        return undef;
-      }
+  my $date_iterator = $self->date_iterator(
+    start_date => $start_date,
+    end_date   => $end_date,
+    increment  => 4,
+    units      => 'years',
+  );
+
+  sub {
+    while (my($d1, $d2) = $date_iterator->()) {
+      return $url_str_maker->($d1, $d2);
     }
-  }
-  else {
-    # use year chunks
-    my($year, $em, $ed) = $self->ymd($end_date);
-    $em -= 1;
-    my($sm, $sd) = (0, 1);
-    return sub {
-      my $url = $make_url_str->($sd, $sm, $year, $ed, $em, $year);
-      $year -= 4;
-      $em = 11; $ed = 31;
-      $url;
-    }
+    undef;
   }
 }
 
@@ -107,12 +89,12 @@ __END__
 
 =head1 NAME
 
-Finance::QuoteHist::QuoteMedia - Site-specific class for retrieving historical stock quotes.
+Finance::QuoteHist::MSN - Site-specific class for retrieving historical stock quotes.
 
 =head1 SYNOPSIS
 
-  use Finance::QuoteHist::QuoteMedia;
-  $q = Finance::QuoteHist::QuoteMedia->new
+  use Finance::QuoteHist::MSN;
+  $q = Finance::QuoteHist::MSN->new
      (
       symbols    => [qw(IBM UPS AMZN)],
       start_date => '01/01/1999',
@@ -126,19 +108,15 @@ Finance::QuoteHist::QuoteMedia - Site-specific class for retrieving historical s
 
 =head1 DESCRIPTION
 
-Finance::QuoteHist::QuoteMedia is a subclass of
+Finance::QuoteHist::MSN is a subclass of
 Finance::QuoteHist::Generic, specifically tailored to read historical
-quotes from the QuoteMedia web site (I<http://www.quotemedia.com/>).
-Note that Quotemedia is currently the site that provides historical
-quote data for such other sites as Silicon Investor, which was the topic
-of an earlier module in this distribution.
+quotes from the MSN financial web site
+(I<http://moneycentral.msn.com/>). Note that Quotemedia is currently the
+site that provides historical quote data for such other sites as Silicon
+Investor, which was the target of a module in an earlier release of this
+distribution.
 
-Quotemedia does not currently provide information on dividends or
-splits.
-
-For quote queries in particular, at the time of this writing, the
-Quotemedia web site utilizes start and end dates with no apparent limit
-on the number of results returned. Results are returned in CSV format.
+MSN does not currently provide information on dividends or splits.
 
 Please see L<Finance::QuoteHist::Generic(3)> for more details on usage
 and available methods. If you just want to get historical quotes and are
@@ -177,8 +155,8 @@ Furthermore, the data from these web sites is usually not even
 guaranteed by the web sites themselves, and oftentimes is acquired
 elsewhere.
 
-Details for Quotemedia's terms of use can be found here:
-I<http://www.quotemedia.com/termsofusetools.php>
+Details for MSN's terms of use can be found here:
+I<http://privacy2.msn.com/tou/en-us/default.aspx>
 
 If you still have concerns, then use another site-specific historical
 quote instance, or none at all.

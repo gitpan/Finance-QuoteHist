@@ -1,5 +1,10 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.07 Thu Mar 16 00:44:24 EST 2006
+    - Internal restructure to date iterators where appropriate.
+    - Doc fix for MSN.
+    - Various minor edge cases fixed.
+
 1.06  Fri Mar 10 15:59:05 EST 2006
     - Added MSN quote source.
     - Fixed some edge cases involving null-queries on splits.

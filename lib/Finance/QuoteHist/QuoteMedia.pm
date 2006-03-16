@@ -36,15 +36,22 @@ sub url_maker {
     @parms{qw(symbol start_date end_date)};
   $start_date ||= $self->start_date;
   $end_date   ||= $self->end_date;
-  if ($start_date && $end_date && $start_date gt $end_date) {
-    ($start_date, $end_date) = ($end_date, $start_date);
-  }
+
+  my $date_iterator = $self->date_iterator(
+    start_date => $start_date,
+    end_date   => $end_date,
+    increment  => 1,
+    units      => 'years',
+  );
 
   my $host = 'app.quotemedia.com';
   my $cgi  = 'quotetools/getHistoryDownload.csv';
 
-  my $make_url_str = sub {
-    my($sd, $sm, $sy, $ed, $em, $ey) = @_;
+  my $url_str_maker = sub {
+    my($d1, $d2) = @_;
+    my($sy, $sm, $sd) = $self->ymd($d1);
+    my($ey, $em, $ed) = $self->ymd($d2);
+    $sm -= 1; $em -= 1;
     my $base_url = "http://$host/$cgi?";
     my @base_parms = (
       "symbol=$ticker",
@@ -54,24 +61,11 @@ sub url_maker {
     $base_url .  join('&', @base_parms);
   };
 
-  if ($start_date) {
-    my($sy, $sm, $sd) = $self->ymd($start_date);
-    my($ey, $em, $ed) = $self->ymd($end_date);
-    $sm -= 1; $em -= 1;
-    my @urls = $make_url_str->($sd, $sm, $sy, $ed, $em, $ey);
-    return sub { pop @urls };
-  }
-  else {
-    # use year chunks
-    my($year, $em, $ed) = $self->ymd($end_date);
-    $em -= 1;
-    my($sm, $sd) = (0, 1);
-    return sub {
-      my $url = $make_url_str->($sd, $sm, $year, $ed, $em, $year);
-      --$year;
-      $em = 11; $ed = 31;
-      $url;
+  sub {
+    while (my($d1, $d2) = $date_iterator->()) {
+      return $url_str_maker->($d1, $d2);
     }
+    undef;
   }
 }
 
