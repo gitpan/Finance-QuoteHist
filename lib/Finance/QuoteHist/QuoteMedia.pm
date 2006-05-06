@@ -4,7 +4,7 @@ use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.02';
+$VERSION = '1.03';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);

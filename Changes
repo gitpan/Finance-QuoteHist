@@ -1,6 +1,12 @@
 Revision history for Perl extension Finance::QuoteHist.
 
-1.07 Thu Mar 16 00:44:24 EST 2006
+1.08  Sat May  6 15:16:11 EDT 2006
+    - Fixed ^DJI test data for quote tests (Yahoo switched to the volume
+      for each anchor date rather than aggregate volumes)
+    - splits() now returns ref properly in scalar context for
+      F::QH::Yahoo. Thanks to Raymond de Leon for spotting.
+
+1.07  Thu Mar 16 00:44:24 EST 2006
     - Internal restructure to date iterators where appropriate.
     - Doc fix for MSN.
     - Various minor edge cases fixed.

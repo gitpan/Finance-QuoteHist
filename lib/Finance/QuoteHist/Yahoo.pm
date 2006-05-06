@@ -4,7 +4,7 @@ use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.03';
+$VERSION = '1.04';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -120,7 +120,8 @@ sub splits {
       $self->_target_source($target_mode, $symbol, ref $self);
     }
   }
-  $self->result_rows($target_mode, @symbols);
+  my @rows = $self->result_rows($target_mode, @symbols);
+  wantarray ? @rows : \@rows;
 }
 
 # Not so direct splits query

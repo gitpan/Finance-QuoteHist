@@ -117,7 +117,6 @@ sub new_quotehist {
     start_date => $start_date,
     end_date   => $end_date,
     auto_proxy => 1,
-    debug      => 1,
     %parms,
   );
 }
