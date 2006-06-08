@@ -1,5 +1,9 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.09  Thu Jun  8 16:19:57 EDT 2006
+    - Fixed ^DJI test data (again) since yahoo keeps changing how they
+      represent volume (thanks to Ivo Welch)
+
 1.08  Sat May  6 15:16:11 EDT 2006
     - Fixed ^DJI test data for quote tests (Yahoo switched to the volume
       for each anchor date rather than aggregate volumes)
