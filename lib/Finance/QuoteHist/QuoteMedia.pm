@@ -31,6 +31,7 @@ sub url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
+  # *always* block unknown target/mode cominations
   return undef unless $target_mode eq 'quote' && $parse_mode eq 'csv';
   my($ticker, $start_date, $end_date) =
     @parms{qw(symbol start_date end_date)};

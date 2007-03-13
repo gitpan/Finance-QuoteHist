@@ -37,6 +37,7 @@ sub url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
+  # *always* block unknown target/mode combinations
   return undef unless $target_mode eq 'quote' && $parse_mode eq 'csv';
   my $granularity = lc($parms{granularity} || $self->granularity);
   # C9 = 0, 1, or 2 (also 3 but we don't use that)

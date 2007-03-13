@@ -8,13 +8,14 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '1.09';
+$VERSION = '1.10';
 
 my @DEFAULT_ENGINES = qw(
-			 Finance::QuoteHist::Yahoo
-			 Finance::QuoteHist::QuoteMedia
-			 Finance::QuoteHist::MSN
-			);
+  Finance::QuoteHist::Yahoo
+  Finance::QuoteHist::BusinessWeek
+  Finance::QuoteHist::QuoteMedia
+  Finance::QuoteHist::MSN
+);
 
 sub new {
   my $class = shift;

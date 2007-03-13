@@ -94,14 +94,15 @@ ACKNOWLEDGEMENTS
 Thanks to Jim Miner for his generous efforts testing this module. Thanks
 to Josh Woodward for some pointers on the Yahoo! interface. Thanks to
 Jacob Anawalt for pointers on the Yahoo! interface and suggestions on
-open-ended date queries. Thanks to Jay Strauss for patches. Thanks to
-Bernd Hacker, Christian von Engelbrechten, Gary Nielson, Mike Brown,
-Bill Stephenson, and Robert S. Weigel for their bug-spotting.
+open-ended date queries. Thanks to Paul McDermott and Jay Strauss for
+patches. Thanks to Manoj Bhatti, Bernd Hacker, Christian von
+Engelbrechten, Gary Nielson, Mike Brown, Bill Stephenson, and Robert S.
+Weigel for their bug-spotting.
 
 
 COPYRIGHT
 
-Copyright (c) 1999-2005 Matthew P. Sisk.  All rights reserved.
+Copyright (c) 1999-2006 Matthew P. Sisk.  All rights reserved.
 All wrongs revenged. This program is free software; you can
 redistribute it and/or modify it under the same terms as
 Perl itself.

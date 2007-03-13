@@ -110,7 +110,7 @@ sub splits {
       foreach (grep(/\w+/, split(/\s*,\s+/, $split_line))) {
         s/\s+$//;
         next if /none/i;
-        my($date, $post, $pre) = /^(\S+).*(\d+):(\d+)/;
+        my($date, $post, $pre) = /^(\S+)\s*\[(\d+):(\d+)\]/;
         $date = ParseDate($date)
           or croak "Problem parsing date string '$date'\n";
         push(@rows, [$date, $post, $pre]);
@@ -197,6 +197,14 @@ sub url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
+
+  # *always* block unknown target mode and parse mode combinations for
+  # cascade to work properly!
+  return undef unless $target_mode eq 'quote' ||
+                      $target_mode eq 'split' ||
+                      $target_mode eq 'dividend';
+  return undef unless $parse_mode eq 'html' || $parse_mode eq 'csv';
+
   my $granularity = lc($parms{granularity} || $self->granularity);
   my $grain = 'd';
   $granularity =~ /^\s*(\w)/;

@@ -1,5 +1,18 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.10  Tue Mar 13 13:57:07 EDT 2007
+
+    - Tweaked Yahoo test data yet again (they seem to be rounding off
+      their volumes now)
+    - Fixed undefined error for symbols with no closing (thanks to
+      Terry Gliedt)
+    - Added BusinessWeek to lineup, including intraday functionality.
+    - Flattened champion delegation.
+    - Added labels() documentation
+    - Implemented user-defined row filtering callback (thanks to Manoj
+      Bhatti for the suggestion)
+    - Added 'shares' as possible label for 'vol' (thanks again to Manoj)
+
 1.09  Thu Jun  8 16:19:57 EDT 2006
     - Fixed ^DJI test data (again) since yahoo keeps changing how they
       represent volume (thanks to Ivo Welch)

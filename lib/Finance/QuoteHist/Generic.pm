@@ -8,7 +8,7 @@ use Carp;
 
 use vars qw($VERSION);
 
-$VERSION = '1.09';
+$VERSION = '1.10';
 
 use LWP::UserAgent;
 
@@ -19,13 +19,17 @@ Date::Manip::Date_Init("TZ=GMT");
 my $Default_Target_Mode = 'quote';
 my $Default_Parse_Mode  = 'html';
 my $Default_Granularity = 'daily';
+my $Default_Vol_Pat = qr(vol|shares)i;
+
 my %Default_Labels;
 $Default_Labels{quote}{$Default_Parse_Mode} =
-  [qw( date open high low close vol )];
+  [qw( date open high low close ), $Default_Vol_Pat];
 $Default_Labels{dividend}{$Default_Parse_Mode} =
   [qw( date div )];
 $Default_Labels{'split'}{$Default_Parse_Mode} =
   [qw( date post pre )];
+$Default_Labels{intraday}{$Default_Parse_Mode} =
+  [qw( date time high low close ), $Default_Vol_Pat];
 
 my @Scalar_Flags = qw(
   verbose
@@ -41,6 +45,7 @@ my @Scalar_Flags = qw(
   target_mode
   granularity
   auto_proxy
+  row_filter
 );
 my $SF_pat = join('|', @Scalar_Flags);
 
@@ -82,6 +87,10 @@ sub new {
       else {
         croak "$k must be passed as a hash ref\n";
       }
+    }
+    elsif ($k eq 'row_filter') {
+      croak "$k must be sub ref\n" unless UNIVERSAL::isa($v, 'CODE');
+      $parms{$k} = $v;
     }
     elsif ($k =~ /^$SF_pat$/o) {
       $parms{$k} = $v;
@@ -132,6 +141,7 @@ sub new {
 sub quotes    { shift->getter(target_mode => 'quote')->()    }
 sub dividends { shift->getter(target_mode => 'dividend')->() }
 sub splits    { shift->getter(target_mode => 'split')->()    }
+sub intraday  { shift->getter(target_mode => 'intraday')->() }
 
 sub target_worthy {
   my $self = shift;
@@ -145,7 +155,13 @@ sub target_worthy {
     parse_mode  => $parse_mode,
     symbol      => 'waggledance',
   );
-  $capable && UNIVERSAL::isa($capable, 'CODE');
+  my $worthy = $capable && UNIVERSAL::isa($capable, 'CODE');
+  if ($self->{verbose}) {
+    print STDERR "Seeing if ", ref $self,
+                 " can get ($target_mode, $parse_mode) : ",
+                 $worthy ? "yes\n" : "no\n";
+  }
+  $worthy;
 }
 
 ### Data retrieval
@@ -183,6 +199,7 @@ sub getter {
   # closure factory to get results for a particular target_mode and
   # parse_mode
   my $self = shift;
+
   my %parms = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
@@ -214,17 +231,24 @@ sub getter {
 
     my $original_target_mode = $self->target_mode;
     my $original_parse_mode  = $self->parse_mode;
+
     $self->target_mode($target_mode);
     $self->parse_mode($parse_mode);
 
     my $dcol = $self->label_column('date');
     my(%empty_fetch, %saw_good_rows);
     my $last_data = '';
-    unless ($self->target_worthy(%parms,
-                                 target_mode => $target_mode,
-                                 parse_mode  => $parse_mode)) {
+
+    my $target_worthy = $self->target_worthy(
+      %parms,
+      target_mode => $target_mode,
+      parse_mode  => $parse_mode
+    );
+    if (!$target_worthy) {
+      # make sure and empty @symbols
       ++$empty_fetch{$_} while $_ = pop @symbols;
     }
+
     SYMBOL: foreach my $s (@symbols) {
       my $urlmaker = $self->url_maker(
         target_mode => $target_mode,
@@ -266,7 +290,7 @@ sub getter {
         } while !@$rows && $trys && $self->{_lwp_success};
         $so_far_so_good = 1;
 
-        if ($target_mode ne 'quote') {
+        if ($target_mode ne 'quote' || $target_mode ne 'intraday') {
           # We are not very stubborn about dividends and splits right
           # now. This is because we cannot prove a successful negative
           # (i.e., say there were no dividends or splits over the time
@@ -335,7 +359,7 @@ sub getter {
           # restore original target mode
           $self->target_mode($target_mode);
   
-          if ($target_mode eq 'quote') {
+          if ($target_mode eq 'quote' || $target_mode eq 'intraday') {
             my $count = @$rows;
             @$rows = grep($self->is_quote_row($_) &&
                           $self->row_not_seen($s, $_), @$rows);
@@ -349,6 +373,8 @@ sub getter {
               }
             }
   
+          }
+          if ($target_mode eq 'quote') {
             # zcount is an attempt to capture null values; if there are
             # too many we assume there is something wrong with the
             # remote data
@@ -379,51 +405,48 @@ sub getter {
             $self->precision_normalize_rows($rows)
               if @$rows && $self->{quote_precision};
           }
+
           last URL if !$ecount && !@$rows;
           $self->_store_results($target_mode, $s, $dcol, $rows) if @$rows;
           $self->_target_source($target_mode, $s, ref $self);
         }
       }
     }
+
+    $self->_store_empty_fetches([keys %empty_fetch]);
   
     # Check for bad fetches. If we failed on some symbols, punt them to
     # our champion class.
     if (%empty_fetch) {
-      my @bad_symbols = sort keys %empty_fetch;
-      print STDERR "Bad fetch for ", join(',', @bad_symbols), "\n"
-        if $self->{verbose};
-      my $champion;
-      my $mystic = $self;
-      while($champion = $mystic->_summon_champion(@bad_symbols)) {
-        print STDERR "Seeing if ", ref $champion, " can get $target_mode\n"
-          if $self->{verbose};
-        last if $champion->target_worthy(target_mode => $target_mode);
-        $mystic = $champion;
-        undef $champion;
-      }
-      if ($champion) {
+      my @bad_symbols = $self->empty_fetches;
+      my @champion_classes = $self->lineup;
+      while (@champion_classes && @bad_symbols) {
+        print STDERR "Bad fetch for ", join(',', @bad_symbols), "\n"
+          if $self->{verbose} && $target_worthy;
+        my $champion =
+          $self->_summon_champion(shift @champion_classes, @bad_symbols);
+        next unless $champion &&
+                    $champion->target_worthy(target_mode => $target_mode);
         print STDERR ref $champion, ", my hero!\n" if $self->{verbose};
         # Hail Mary
-        my $method = $target_mode . 's';
-        # Our champion, or one of their champions, was the source for
-        # these symbols (including extracted info).
+        $champion->getter(target_mode => $target_mode)->();
+        # Our champion was the source for these symbols (including
+        # extracted info).
         foreach my $mode ($champion->result_modes) {
           foreach my $symbol ($champion->result_symbols($mode)) {
-            $self->_target_source($mode, $_,
-                                 $champion->_target_source($mode, $_));
-            $self->_store_results($mode, $symbol, $dcol,
-                                  $self->results($mode, $symbol));
+            $self->_target_source($mode, $symbol, ref $champion);
+            $self->_copy_results($mode, $symbol,
+                                 $champion->results($mode, $symbol));
           }
         }
+        @bad_symbols = $champion->empty_fetches;
       }
-      elsif (! $self->{quiet}) {
+      if (@bad_symbols && !$self->{quite}) {
         print STDERR "WARNING: Could not fetch $target_mode for some symbols (",join(', ', @bad_symbols), "). Abandoning request for these symbols.";
         if ($target_mode ne 'quote') {
-          print STDERR " Don't worry, though, we were looking for ${target_mode}s. These are less likely to exist compared to quotes.\n";
+          print STDERR " Don't worry, though, we were looking for ${target_mode}s. These are less likely to exist compared to quotes.";
         }
-        else {
-          print STDERR "\n";
-        }
+        print STDERR "\n";
       }
     }
   
@@ -449,6 +472,13 @@ sub _store_results {
   }
 }
 
+sub _copy_results {
+  my($self, $mode, $symbol, $results) = @_;
+  foreach my $date (sort keys %$results) {
+    $self->{results}{$mode}{$symbol}{$date} = [@{$results->{$date}}];
+  }
+}
+
 sub result_rows {
   my($self, $target_mode, @symbols) = @_;
   $target_mode ||= $self->target_mode;
@@ -463,6 +493,19 @@ sub result_rows {
   sort { $a->[1] cmp $b->[1] } @rows;
 }
 
+sub _store_empty_fetches {
+  my $self = shift;
+  my $ref = shift || [];
+  @$ref = sort @$ref;
+  $self->{empty_fetches} = $ref;
+}
+
+sub empty_fetches {
+  my $self = shift;
+  return () unless $self->{empty_fetches};
+  @{$self->{empty_fetches}} 
+}
+
 sub extractors { () }
 
 sub rows {
@@ -471,9 +514,13 @@ sub rows {
   my $rc = @$rows;
   print STDERR "Got $rc raw rows\n" if $self->{verbose};
 
+  # Load user filter if present
+  my $row_filter = $self->row_filter;
+
   # Prep the rows
-  foreach (@$rows) {
-    foreach (@$_) {
+  foreach my $row (@$rows) {
+    $row_filter->($row) if $row_filter;
+    foreach (@$row) {
       # Zap leading and trailing white space
       next unless defined;
       s/^\s+//; s/\s+$//;
@@ -481,11 +528,18 @@ sub rows {
   }
   # Pass only rows with a valid date that is in range (and store the
   # processed value while we are at it)
+  my $target_mode = $self->target_mode;
   my @date_rows;
   my $dcol = $self->label_column('date');
+  my $tcol = $self->label_column('time') if $target_mode eq 'intraday';
   my $r;
   while($r = pop @$rows) {
-    my $date = $self->date_normalize($r->[$dcol]);
+    my $date = $r->[$dcol];
+    if ($target_mode eq 'intraday') {
+      my $time = splice(@$r, $tcol, 1);
+      $date = join('', $date, $time);
+    }
+    $date = $self->date_normalize($date);
     unless ($date) {
       print STDERR "Reject row (no date): '$r->[$dcol]'\n" if $self->{verbose};
       next;
@@ -550,6 +604,7 @@ sub date_normalize {
     $normal_date = ParseDate($date);
   }
   $normal_date or return undef;
+  return $normal_date if $self->target_mode eq 'intraday';
   join('/', $self->ymd($normal_date));
 }
 
@@ -572,10 +627,17 @@ sub precision_normalize_rows {
   # knows details about where the numbers of interest reside.
   my($self, $rows) = @_;
   my $target_mode = $self->target_mode;
-  croak "precision_normalize invoked in '$target_mode' mode rather than 'quote' mode.\n" unless $self->target_mode eq 'quote';
-  my(@columns) = $self->label_column(qw(open high low close));
-  push(@columns, $self->label_column('adj')) if $self->adjuster;
-  my $vol_col = $self->label_column('vol');
+  croak "precision_normalize invoked in '$target_mode' mode rather than 'quote'  or 'intraday' mode.\n"
+    unless $target_mode eq 'quote' || $target_mode eq 'intraday';
+  my @columns;
+  if ($target_mode ne 'intraday') {
+    @columns = $self->label_column(qw(open high low close));
+    push(@columns, $self->label_column('adj')) if $self->adjuster;
+  }
+  else {
+    @columns = $self->label_column(qw(high low close));
+  }
+  my $vol_col = $self->label_column($Default_Vol_Pat);
   foreach my $row (@$rows) {
     $row->[$_] = sprintf("%.$self->{quote_precision}f", $row->[$_])
       foreach @columns;
@@ -625,7 +687,7 @@ sub date_in_range {
 ### Label and label mapping/extraction management
 
 sub default_target_mode { $Default_Target_Mode }
-sub default_parse_mode { $Default_Parse_Mode  }
+sub default_parse_mode  { $Default_Parse_Mode  }
 sub default_granularity { $Default_Granularity }
 
 sub set_label_pattern {
@@ -643,7 +705,7 @@ sub set_label_pattern {
     delete $self->{label_map};
     delete $self->{pattern_map};
   }
-  my $pat = $l2p->{$label} ||= ($label =~ /vol/i ?
+  my $pat = $l2p->{$label} ||= ($label =~ $Default_Vol_Pat ?
                                   qr/\s*$label/i : qr/^\s*$label/i);
   $p2l->{$pat} ||= $label;
   $pat;
@@ -795,6 +857,12 @@ sub granularity {
   $self->{granularity} || $self->default_granularity;
 }
 
+sub lineup {
+  my $self = shift;
+  $self->{lineup} = \@_ if @_;
+  @{$self->{lineup}};
+}
+
 ### Parser methods
 
 sub parser {
@@ -855,6 +923,7 @@ sub csv_parser {
   my @patterns = $self->patterns(@_);
   sub {
     my $data = shift;
+    return [] unless defined $data;
     my @csv_lines = ref $data ? <$data> : split("\n", $data);
     # might be unix, windows, or mac style newlines
     s/\s+$// foreach @csv_lines;
@@ -1001,15 +1070,18 @@ sub results {
   $self->{results}{$target_mode}{$symbol};
 }
 
-sub quote_source    { shift->source(shift, 'quote') }
+sub quote_source    { shift->source(shift, 'quote')    }
 sub dividend_source { shift->source(shift, 'dividend') }
-sub split_source    { shift->source(shift, 'split') }
+sub split_source    { shift->source(shift, 'split')    }
+sub intraday_source { shift->source(shift, 'intraday') }
+
+sub row_filter { shift->{row_filter} }
 
 sub source {
   my($self, $symbol, $target_mode) = @_;
   croak "Ticker symbol required\n" unless $symbol;
   $target_mode ||= $self->target_mode;
-  $self->{sources}{$target_mode}{$symbol};
+  $self->{sources}{$target_mode}{$symbol} || '';
 }
 
 sub _target_source {
@@ -1029,21 +1101,19 @@ sub _summon_champion {
   # Instantiate the next class in line if this class failed in
   # fetching any quotes. Make sure and pass along the remaining
   # champions to the new champion.
-  my($self, @bad_symbols) = @_;
+  my($self, $champion_class, @bad_symbols) = @_;
   return undef unless ref $self->{lineup} && @{$self->{lineup}};
-  my @lineup = @{$self->{lineup}};
-  my $champ_class = shift @lineup;
-  print STDERR "Loading $champ_class\n" if $self->{verbose};
-  eval "require $champ_class;";
+  print STDERR "Loading $champion_class\n" if $self->{verbose};
+  eval "require $champion_class;";
   die $@ if $@;
-  my $champion = $champ_class->new
+  my $champion = $champion_class->new
     (
      symbols    => [@bad_symbols],
      start_date => $self->{start_date},
      end_date   => $self->{end_date},
      adjusted   => $self->{adjusted},
      verbose    => $self->{verbose},
-     lineup     => \@lineup,
+     lineup     => [],
     );
   $champion;
 }
@@ -1177,7 +1247,8 @@ for multiple tickers.
 =item granularity
 
 Returns rows at 'daily', 'weekly', or 'monthly' levels of granularity.
-Defaults to 'daily'.
+Defaults to 'daily'. (L<Finance::QuoteHist::BusinessWeek> also offers
+'quarterly' and 'intraday' granularities).
 
 =item attempts
 
@@ -1211,6 +1282,18 @@ currently...see L<Finance::QuoteHist::Yahoo>). Setting this to 0 will
 disable the rounding behavior, returning the quote values as they
 appear on the sites (assuming no auto-adjustment has taken place). The
 default is 4.
+
+=item row_filter
+
+When provided a subroutine reference, the routine is invoked with an
+array reference for each raw row retrieved from the quote source. This
+allows user-defined filtering or formatting for the items of each
+row. This routine is invoked before any built-in routines are called
+on the row. The array must be modified directly rather than returned
+as a value. Use sparingly since the built-in filtering and
+normalizing routines do expect each row to more or less look like
+historical stock data. Rearranging the order of the columns in each row
+is contraindicated.
 
 =item env_proxy
 
@@ -1344,6 +1427,35 @@ Return the current target mode.
 Returns a list of business days between and including the provided
 boundary dates. If no arguments are provided, B<start_date> and
 B<end_date> default to the currently specified date range.
+
+=item labels(%parms)
+
+Used to override the default labels for a given target mode and parse
+mode. Takes the following named parameters:
+
+=over
+
+=item target_mode
+
+Can currently be 'quote', 'dividend', or 'split'. Default is 'quote'.
+
+=item parse mode
+
+Can currently be 'csv' or 'html'. The default is typically 'csv' but
+might vary depending on the quote source.
+
+=item labels
+
+The following are the default labels. Text entries convert to case-
+insensitive regular expressions):
+
+  target_mode
+  -------------------------------------------------------
+  quote    => ['date','open','high','low','close',qr(vol|shares)i]
+  dividend => ['date','div']
+  split    => ['date','post','pre']
+
+=back
 
 =back
 
