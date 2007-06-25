@@ -4,7 +4,7 @@ use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.04';
+$VERSION = '1.05';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -79,6 +79,11 @@ sub new {
   $self;
 }
 
+# override these for other Yahoo sites
+sub url_base_csv    { 'http://ichart.finance.yahoo.com/table.csv' }
+sub url_base_html   { 'http://finance.yahoo.com/q/hp' }
+sub url_base_splits { 'http://finance.yahoo.com/q/bc' }
+
 # Yahoo can fetch dividends and splits. They can be extracted from
 # regular quote results or queried directly.
 
@@ -95,7 +100,7 @@ sub splits {
   }
   # example URL: http://finance.yahoo.com/q/bc?s=IBM&t=my
   foreach my $symbol (@not_seen) {
-    my $url = "http://finance.yahoo.com/q/bc?s=$symbol&t=my";
+    my $url = $self->url_base_splits() . "?s=$symbol&t=my";
     print STDERR "Processing ($symbol:$target_mode) $url\n" if $self->{verbose};
     my $data = $self->{url_cache}{$url} || $self->fetch($self->method, $url);
     $self->{url_cache}{$url} = $data;
@@ -216,17 +221,9 @@ sub url_maker {
   if ($start_date && $end_date && $start_date gt $end_date) {
     ($start_date, $end_date) = ($end_date, $start_date);
   }
-  my @urls;
-  my($host, $cgi);
-  if ($parse_mode eq 'csv') {
-    $host = 'ichart.finance.yahoo.com';
-    $cgi  = 'table.csv';
-  }
-  else {
-    $host = 'finance.yahoo.com';
-    $cgi  = 'q/hp';
-  }
 
+  my $base_url = $parse_mode eq 'csv' ? $self->url_base_csv() :
+                                        $self->url_base_html();
   my @base_parms;
   if ($start_date) {
     my($y, $m, $d) = $self->ymd($start_date);
@@ -242,13 +239,11 @@ sub url_maker {
   $ticker ||= 'BOOLEAN';
   push(@base_parms, "g=$g", "s=$ticker");
   
-  my $base_url = "http://$host/$cgi?";
-
   if ($parse_mode eq 'html' && $target_mode eq 'quote' || $target_mode eq 'dividend') {
     my $cursor = 0;
     my $window = 66;
     return sub {
-      my $url = $base_url .
+      my $url = $base_url . '?' .
         join('&', @base_parms,
                  "z=$window", "y=$cursor");
       $url .= '&ignore=.csv' if $parse_mode eq 'csv';
@@ -257,7 +252,7 @@ sub url_maker {
     }
   }
   else {
-    @urls = $base_url .  join('&', @base_parms);
+    my @urls = $base_url .  '?' . join('&', @base_parms);
     $urls[0] .= '&ignore=.csv' if $parse_mode eq 'csv';
     return sub { pop @urls }
   }

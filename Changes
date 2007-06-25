@@ -1,5 +1,11 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.11  Mon Jun 25 19:21:21 EDT 2007
+    - Added Google and Yahoo_AU
+    - Rewrote BusinessWeek, decodes from javascript channels now,
+      since they changed how their site operates. No more intraday
+      quotes though.
+
 1.10  Tue Mar 13 13:57:07 EDT 2007
 
     - Tweaked Yahoo test data yet again (they seem to be rounding off

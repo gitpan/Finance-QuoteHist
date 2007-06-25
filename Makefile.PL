@@ -5,6 +5,7 @@ my %prereq_pm = (
   'LWP::UserAgent'     => 0,
   'HTTP::Request'      => 0,
   'HTML::TableExtract' => 2.07,
+  'MIME::Base64'       => 0,
   'Text::CSV_PP'       => 0,
 );
 

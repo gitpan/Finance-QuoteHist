@@ -7,6 +7,9 @@ lib/Finance/QuoteHist/Generic.pm
 lib/Finance/QuoteHist/Yahoo.pm
 lib/Finance/QuoteHist/QuoteMedia.pm
 lib/Finance/QuoteHist/MSN.pm
+lib/Finance/QuoteHist/BusinessWeek.pm
+lib/Finance/QuoteHist/Google.pm
+lib/Finance/QuoteHist/Yahoo_AU.pm
 t/00_basic.t
 t/05_csv.t
 t/10_quotes.t

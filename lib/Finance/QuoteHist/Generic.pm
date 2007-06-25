@@ -1,5 +1,18 @@
 package Finance::QuoteHist::Generic;
 
+# http://www.stanford.edu/dept/OOD/RESEARCH/top-ten-faq/how_do_i_find_an_historical_st.html
+#
+# Shortcut: Use adjusted close price
+#
+# For the mathematically inclined, one shortcut to determining the value
+# after splits is to use the adjusted close price from the historical
+# quote tool. For June 2, 1997, it lists a market close price of 33.13
+# and an adjusted close price of 1.38. Divide 33.13 by 1.38 and you come
+# up with 24.007. Multiply by 1,000 and you come pretty close to the
+# 24,000 share figure determined above. Or you could divide 1.38 by
+# 33.13, which gives you 0.041654. Divide $33,130 by 0.041654, and you
+# get $795K, which is very close to the $808K figure above.
+
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
@@ -8,7 +21,7 @@ use Carp;
 
 use vars qw($VERSION);
 
-$VERSION = '1.10';
+$VERSION = '1.11';
 
 use LWP::UserAgent;
 
@@ -142,6 +155,8 @@ sub quotes    { shift->getter(target_mode => 'quote')->()    }
 sub dividends { shift->getter(target_mode => 'dividend')->() }
 sub splits    { shift->getter(target_mode => 'split')->()    }
 sub intraday  { shift->getter(target_mode => 'intraday')->() }
+
+*intraday_quotes = *intraday;
 
 sub target_worthy {
   my $self = shift;
@@ -860,6 +875,7 @@ sub granularity {
 sub lineup {
   my $self = shift;
   $self->{lineup} = \@_ if @_;
+  return unless $self->{lineup};
   @{$self->{lineup}};
 }
 
@@ -1480,7 +1496,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2006 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2007 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

@@ -25,7 +25,7 @@ sub quote_cmp {
   my($symbol, $start_date, $end_date, $label, $quotes, %parms) = @_;
   my $q = new_quotehist($symbol, $start_date, $end_date, %parms);
   my @rows = $q->quotes;
-  cmp_ok(scalar @$quotes, '==', scalar @rows, "$label (rows)");
+  cmp_ok(scalar @rows, '==', scalar @$quotes, "$label (rows)");
   foreach (0 .. $#rows) {
     cmp_ok(join(':', @{$rows[$_]}), 'eq', $quotes->[$_],
            "$label (row content)");

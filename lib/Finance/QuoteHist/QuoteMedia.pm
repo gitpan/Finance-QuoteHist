@@ -4,7 +4,7 @@ use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.03';
+$VERSION = '1.04';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -14,7 +14,8 @@ Date::Manip::Date_Init("TZ=GMT");
 
 # Example URL:
 #
-# http://app.quotemedia.com/data/getHistoryDownload.csv?symbol=IBM&startDay=2&startMonth=4&startYear=2004&endDay=2&endMonth=5&endYear=2005
+# http://app.quotemedia.com/quotetools/getHistoryDownload.csv?symbol=IBM&startDay=2&startMonth=4&startYear=2004&endDay=2&endMonth=5&endYear=2005
+# http://app.quotemedia.com/quotetools/getHistoryDownload.csv?&webmasterId=501&symbol=IBM&startDay=25&startMonth=4&startYear=2007&endDay=25&endMonth=5&endYear=2007
 
 sub new {
   my $that = shift;
