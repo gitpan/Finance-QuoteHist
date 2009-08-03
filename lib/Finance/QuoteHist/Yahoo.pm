@@ -102,7 +102,7 @@ sub splits {
   foreach my $symbol (@not_seen) {
     my $url = $self->url_base_splits() . "?s=$symbol&t=my";
     print STDERR "Processing ($symbol:$target_mode) $url\n" if $self->{verbose};
-    my $data = $self->{url_cache}{$url} || $self->fetch($self->method, $url);
+    my $data = $self->{url_cache}{$url} || $self->fetch($url);
     $self->{url_cache}{$url} = $data;
     print STDERR "Custom parse for ($symbol:$target_mode)\n" if $self->{verbose};
     my $te = HTML::TableExtract->new(headers => ['Splits:']);
@@ -115,7 +115,7 @@ sub splits {
       foreach (grep(/\w+/, split(/\s*,\s+/, $split_line))) {
         s/\s+$//;
         next if /none/i;
-        my($date, $post, $pre) = /^(\S+)\s*\[(\d+):(\d+)\]/;
+        my($date, $post, $pre) = /^(\S+)\D*(\d+):(\d+)/m;
         $date = ParseDate($date)
           or croak "Problem parsing date string '$date'\n";
         push(@rows, [$date, $post, $pre]);

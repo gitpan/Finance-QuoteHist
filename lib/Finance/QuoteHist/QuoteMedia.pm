@@ -4,71 +4,193 @@ use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.04';
+$VERSION = '1.05';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
 
+use constant DEBUG => 0;
+
 use Date::Manip;
 Date::Manip::Date_Init("TZ=GMT");
 
-# Example URL:
-#
-# http://app.quotemedia.com/quotetools/getHistoryDownload.csv?symbol=IBM&startDay=2&startMonth=4&startYear=2004&endDay=2&endMonth=5&endYear=2005
-# http://app.quotemedia.com/quotetools/getHistoryDownload.csv?&webmasterId=501&symbol=IBM&startDay=25&startMonth=4&startYear=2007&endDay=25&endMonth=5&endYear=2007
+use URI;
+use URI::QueryParam;
+use HTTP::Request::Common;
+use Regexp::Common;
+use HTML::TokeParser;
 
-sub new {
-  my $that = shift;
-  my $class = ref($that) || $that;
-  my %parms = @_;
-  my $self = __PACKAGE__->SUPER::new(%parms);
-  bless $self, $class;
-  $self->parse_mode('csv');
-  $self;
+# http://app.quotemedia.com/quotetools/clientForward?targetURL=http%3A%2F%2Fwww.quotemedia.com%2Fresults.php&targetsym=qm_symbol&targettype=null&targetex=&qmpage=true&action=showHistory&symbol=IBM&page=2&startDay=3&startMonth=6&startYear=2007&endDay=3&endMonth=7&endYear=2008&perPage=90
+
+# http://app.quotemedia.com/quotetools/getHistoryDownload.csv?&webmasterId=501&symbol=IBM&startDay=26&startMonth=4&startYear=2005&endDay=26&endMonth=5&endYear=2007
+
+my $Tgt_Host = 'www.quotemedia.com';
+my $Results_uri = URI->new("http://$Tgt_Host/results.php");
+my $Tgt_Post_uri    = $Results_uri->clone;
+my $Tgt_Cookie_uri  = $Results_uri->clone;
+$Tgt_Cookie_uri->query_form( action => 'showHistory' );
+$Tgt_Post_uri->query_form  ( qmpage => 'true'        );
+
+my $Fwd_Host = 'app.quotemedia.com';
+my $Cookie_uri = URI->new("http://$Fwd_Host/quotetools/clientForward");
+my $Post_uri   = $Cookie_uri->clone;
+$Cookie_uri->query_form( targetURL => $Tgt_Cookie_uri->as_string );
+$Post_uri->query_form  ( targetURL => $Tgt_Post_uri->as_string   );
+
+my $CSV_uri = URI->new("http://$Fwd_Host/quotetools/getHistoryDownload.csv");
+
+sub _initialize_cookie_session {
+  my $self = shift;
+  my $ua = $self->ua;
+  if (my $cj = $ua->cookie_jar) {
+    # only init cookie once
+    return if $cj->scan( sub { $_[4] eq $Fwd_Host } );
+  }
+  # quotemedia tracks sessions via unique cookies
+  $ua->cookie_jar({}); 
+  # URL redirects with POST data required as well
+  push @{ $ua->requests_redirectable }, 'POST';
+  # set up cookie
+  print STDERR "HEAD to ",$Cookie_uri->canonical,"\n" if DEBUG;
+  my $resp = $ua->head($Cookie_uri);
+  croak "Problem establishing cookie : ".$resp->status_line."\n"
+    unless $resp->is_success;
+  print STDERR $ua->cookie_jar->as_string, "\n" if DEBUG;
+  $resp;
 }
 
-
 sub url_maker {
+  my($self, %parms) = @_;
+  my $start_date = $parms{start_date} ||= $self->start_date;
+  my $end_date   = $parms{end_date}   ||= $self->end_date;
+
+  # QM no longer provides CSV
+
+  $parms{parse_mode} = $self->parse_mode('html');
+  return $self->_html_url_maker(%parms);
+}
+
+sub _html_url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
   # *always* block unknown target/mode cominations
-  return undef unless $target_mode eq 'quote' && $parse_mode eq 'csv';
-  my($ticker, $start_date, $end_date) =
+  return undef unless $target_mode eq 'quote' && $parse_mode eq 'html';
+
+  my($symbol, $start_date, $end_date) =
     @parms{qw(symbol start_date end_date)};
+
+  # cheat if this is just testing capability (avoids bogus session
+  # queries)
+  return sub {} if $symbol eq 'waggledance';
+
+  $self->_initialize_cookie_session;
+
   $start_date ||= $self->start_date;
   $end_date   ||= $self->end_date;
+  my($sy, $sm, $sd) = $self->ymd($start_date);
+  my($ey, $em, $ed) = $self->ymd($end_date);
+  --$sm; --$em;
 
-  my $date_iterator = $self->date_iterator(
-    start_date => $start_date,
-    end_date   => $end_date,
-    increment  => 1,
-    units      => 'years',
-  );
-
-  my $host = 'app.quotemedia.com';
-  my $cgi  = 'quotetools/getHistoryDownload.csv';
-
-  my $url_str_maker = sub {
-    my($d1, $d2) = @_;
-    my($sy, $sm, $sd) = $self->ymd($d1);
-    my($ey, $em, $ed) = $self->ymd($d2);
-    $sm -= 1; $em -= 1;
-    my $base_url = "http://$host/$cgi?";
-    my @base_parms = (
-      "symbol=$ticker",
-      "startDay=$sd", "startMonth=$sm", "startYear=$sy",
-      "endDay=$ed",   "endMonth=$em",   "endYear=$ey"
-    );
-    $base_url .  join('&', @base_parms);
-  };
-
+  my($page, $max_page, $per_page) = (1, 0, 90);
+  my $referer;
   sub {
-    while (my($d1, $d2) = $date_iterator->()) {
-      return $url_str_maker->($d1, $d2);
+    my $resp;
+    if ($page == 1) {
+      $resp = $self->_post_redirect($symbol, $start_date, $end_date, 1);
+      $referer = $resp->previous->header('location');
     }
-    undef;
-  }
+    else {
+      my $uri = $Post_uri->clone;
+      $uri->query_form(
+        targetsym  => '',
+        targettype => 'null',
+        targetex   => '',
+        qmpage     => 'true',
+        action     => 'showHistory',
+        symbol     => $symbol,
+        page       => $page,
+        perPage    => $per_page, # default 25, 90 appears to be maximum
+        startDay   => $sd, startMonth => $sm, startYear => $sy,
+        endDay     => $ed, endMonth   => $em, endYear   => $ey,
+      );
+      my $req = GET($uri);
+      $req->referer($referer);
+      $resp = $self->ua->request($req);
+      croak "Problem fetching outer page : ".$resp->status_line."\n"
+        unless $resp->is_success;
+      $referer = $resp->previous->header('location');
+    }
+    ++$page;
+    my $uri = $self->_extract_quote_src($resp->content);
+    my $req = HTTP::Request->new(GET => $uri);
+    $req->referer($referer);
+    $req;
+  };
+}
+
+sub html_pre_parser {
+  # since our goodies are actually embedded in a javascript
+  # document.write statement, we force the document to look more like
+  # normal html so HTE can have at it.
+  my $self = shift;
+  sub {
+    my $extracted = '';
+    foreach my $dq ($_[0] =~ /$RE{quoted}/g) {
+      $extracted .= eval $dq;
+      croak "problem evaling double quoted string : $@\n" if $@;
+    }
+    $extracted;
+  };
+}
+
+sub _post_redirect {
+  my $self = shift;
+  my($symbol, $start_date, $end_date) = @_;
+  my $ua = $self->ua;
+  my($sy, $sm, $sd) = $self->ymd($start_date);
+  my($ey, $em, $ed) = $self->ymd($end_date);
+  --$sm; --$em;
+  my %form = (
+    action => 'showHistory',
+    symbol => $symbol,
+  );
+  my $uri = $Post_uri->clone;
+  $uri->query_form(
+    targetsym  => '',
+    targettype => 'null',
+    targetex   => '',
+    qmpage     => 'true',
+  );
+  print STDERR "POST to ",$uri->canonical,"\n" if DEBUG;
+  my $req = POST($uri, \%form);
+  $req->referer($Results_uri);
+  my $resp = $ua->request($req);
+  croak "Problem establishing cookie : ".$resp->status_line."\n"
+    unless $resp->is_success;
+  $resp;
+}
+
+sub _extract_quote_src {
+  my $self = shift;
+  my $content = shift;
+  my $parser = HTML::TokeParser->new(\$content) || die "oops parser $!\n";
+  my @urls;
+  while ( my $token = $parser->get_tag( 'script' ) ) {
+    my $url = $token->[1]{src} || next;
+    my $uri;
+    if ($url =~ qw{^/}) {
+      $uri = URI->new("http://$Tgt_Host$url");
+    }
+    else {
+      $uri = URI->new($url);
+    }
+    next unless $uri->host eq $Fwd_Host;
+    my %query = $uri->query_form();
+    next unless $query{targetURL};
+    return $uri;
+ }
+ return;
 }
 
 1;
@@ -108,7 +230,8 @@ splits.
 
 For quote queries in particular, at the time of this writing, the
 Quotemedia web site utilizes start and end dates with no apparent limit
-on the number of results returned. Results are returned in CSV format.
+on the number of results returned. Results are harvested from HTML
+since CSV no longer seems to be supported.
 
 Please see L<Finance::QuoteHist::Generic(3)> for more details on usage
 and available methods. If you just want to get historical quotes and are
@@ -161,7 +284,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2006 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2006-2009 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

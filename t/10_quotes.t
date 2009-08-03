@@ -2,7 +2,7 @@ use strict;
 use lib './lib';
 
 my $tcount;
-BEGIN { $tcount = 104 }
+BEGIN { $tcount = 103 }
 use Test::More tests => $tcount;
 
 use FindBin;

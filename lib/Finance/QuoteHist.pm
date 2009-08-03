@@ -8,14 +8,13 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '1.11';
+$VERSION = '1.12';
 
 my @DEFAULT_ENGINES = qw(
   Finance::QuoteHist::Yahoo
   Finance::QuoteHist::QuoteMedia
-  Finance::QuoteHist::BusinessWeek
-  Finance::QuoteHist::MSN
   Finance::QuoteHist::Google
+  Finance::QuoteHist::MSN
 );
 
 sub new {
@@ -57,7 +56,7 @@ Finance::QuoteHist - Perl module for fetching historical stock quotes.
   $q = Finance::QuoteHist->new
      (
       symbols    => [qw(IBM UPS AMZN)],
-      start_date => '01/01/1999',
+      start_date => '01/01/2008', # or 'one year ago', see Date::Manip
       end_date   => 'today',
      );
 
@@ -93,7 +92,9 @@ Unless otherwise defined via the I<lineup> attribute, this module will
 select a I<lineup> for you, the default being:
 
     Finance::QutoeHist::Yahoo
+    Finance::QutoeHist::Google
     Finance::QuoteHist::QuoteMedia
+    Finance::QutoeHist::MSN
 
 Once instantiated, this module behaves identically to the first module
 in the I<lineup>, sharing all of that module's methods.

@@ -18,21 +18,14 @@ The real workhorse of the bundle, a sub class of
 LWP::UserAgent. Site-specific modules are sub classes
 of this module.
 
+Current site-specific modules include:
+
 Finance::QuoteHist::Yahoo
--------------------------
-Specific instance of the Generic module tailored for the
-Yahoo website. This subclass also features information
-on historical splits and dividends.
-
+Finance::QuoteHist::Yahoo::Australia
 Finance::QuoteHist::QuoteMedia
-----------------------------------
-Specific instance of the Generic module tailored for the
-QuoteMedia website.
-
-
-There used to be modules for Motley Fool as well as FinancialWeb, but
-the Fool ceased offering tabular data and FinancialWeb appears to be
-gone for good.
+Finance::QuoteHist::Google
+Finance::QuoteHist::BusinessWeek
+Finance::QuoteHist::MSN
 
 
 INSTALLATION
@@ -102,7 +95,7 @@ Weigel for their bug-spotting.
 
 COPYRIGHT
 
-Copyright (c) 1999-2006 Matthew P. Sisk.  All rights reserved.
+Copyright (c) 1999-2009 Matthew P. Sisk.  All rights reserved.
 All wrongs revenged. This program is free software; you can
 redistribute it and/or modify it under the same terms as
 Perl itself.

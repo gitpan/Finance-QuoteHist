@@ -1,5 +1,17 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.12  Mon Aug  3 18:40:15 EDT 2009
+    - Fixed various site-specific modules
+    - F::Q::Yahoo_AU is deprecated in favor of
+      F::Q::Yahoo::Australia (though the old package
+      is still around for backwards compat)
+    - moved CSV class discovery to package level (thanks
+      to Edmond Shum)
+    - fixed the 'unsigned integer' problem with volumes
+      (thanks to 'o kite')
+    - fixed some undef warnings and typos (thanks to
+      Jim Miner)
+
 1.11  Mon Jun 25 19:21:21 EDT 2007
     - Added Google and Yahoo_AU
     - Rewrote BusinessWeek, decodes from javascript channels now,

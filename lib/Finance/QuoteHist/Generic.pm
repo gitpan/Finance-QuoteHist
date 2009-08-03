@@ -13,9 +13,6 @@ package Finance::QuoteHist::Generic;
 # 33.13, which gives you 0.041654. Divide $33,130 by 0.041654, and you
 # get $795K, which is very close to the $808K figure above.
 
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
 use strict;
 use Carp;
 
@@ -28,6 +25,16 @@ use LWP::UserAgent;
 use HTTP::Request;
 use Date::Manip;
 Date::Manip::Date_Init("TZ=GMT");
+
+my $CSV_XS_Class = 'Text::CSV_XS';
+my $CSV_PP_Class = 'Text::CSV_PP';
+my $CSV_Class = $CSV_XS_Class;
+eval "use $CSV_Class";
+if ($@) {
+  $CSV_Class = $CSV_PP_Class;
+  eval "use $CSV_Class";
+  croak "Could not load either $CSV_XS_Class or $CSV_PP_Class : $@\n" if $@;
+}
 
 my $Default_Target_Mode = 'quote';
 my $Default_Parse_Mode  = 'html';
@@ -77,10 +84,7 @@ sub new {
   my(@pass, %parms, $k, $v);
   while (($k,$v) = splice(@_, 0, 2)) {
     if ($k eq 'start_date' || $k eq 'end_date' && $v !~ /^\s*$/) {
-      my $d = ParseDate($v);
-      $d or croak "Could not parse date $d\n";
-      $d =~ s/\d\d:.*//;
-      $parms{$k} = $d;
+      $parms{$k} = __PACKAGE__->date_standardize($v);
     }
     elsif ($k =~ /^$AF_pat$/o) {
       if (UNIVERSAL::isa($v, 'ARRAY')) {
@@ -109,7 +113,7 @@ sub new {
       $parms{$k} = $v;
     }
   }
-  $parms{end_date} ||= ParseDate('today');
+  $parms{end_date} ||= __PACKAGE__->date_standardize('today');
   $parms{symbols} or croak "Symbol list required\n";
 
   my $start_date = $parms{start_date}; delete $parms{start_date};
@@ -119,10 +123,10 @@ sub new {
   # Defaults
   $parms{zthresh}          = 30 unless $parms{zthresh};
   $parms{attempts}         = 3  unless $parms{attempts};
-  $parms{adjusted}         = 1  unless defined $parms{adjusted};
+  $parms{adjusted}         = 1  unless exists  $parms{adjusted};
   $parms{has_non_adjusted} = 0  unless defined $parms{has_non_adjusted};
   $parms{quote_precision}  = 4  unless defined $parms{quote_precision};
-  $parms{auto_proxy}       = 0  unless defined $parms{auto_proxy};
+  $parms{auto_proxy}       = 1  unless exists  $parms{auto_proxy};
   $parms{debug}            = 0  unless defined $parms{debug};
 
   my $self = \%parms;
@@ -181,18 +185,21 @@ sub target_worthy {
 
 ### Data retrieval
 
-sub ua { shift->{ua} }
-
-sub method   { 'GET' }
+sub ua {
+  my $self = shift;
+  @_ ? $self->{ua} = shift : $self->{ua};
+}
 
 sub fetch {
   # HTTP::Request and LWP::UserAgent Wrangler
-  my($self, $method, $url) = splice(@_, 0, 3);
-  $method or croak "Request method required\n";
-  $url or croak "URL required\n";
+  my($self, $request) = splice(@_, 0, 2);
+  $request or croak "Request or URL required\n";
+
+  if (! ref $request || ! $request->isa('HTTP::Request')) {
+    $request = HTTP::Request->new(GET => $request);
+  }
 
   my $trys = $self->{attempts};
-  my $request = HTTP::Request->new($method, $url);
   my $response = $self->ua->request($request, @_);
   $self->{_lwp_success} = 0;
   while (! $response->is_success) {
@@ -279,7 +286,12 @@ sub getter {
              if $self->{verbose};
           last URL;
         }
-        print STDERR "Processing ($s:$target_mode) $url\n" if $self->{verbose};
+
+        if ($self->{verbose}) {
+          my $uri = $url;
+          $uri = $url->uri if UNIVERSAL::isa($url, 'HTTP::Request');
+          print STDERR "Processing ($s:$target_mode) $uri\n";
+        }
 
         # We're a bit more persistent with quotes. It is more suspicious
         # if we get no quote rows, but it is nevertheless possible.
@@ -289,7 +301,12 @@ sub getter {
         do {
           print STDERR "$s Trying ($target_mode) again due to no rows...\n"
             if $self->{verbose} && $trys != $initial_trys;
-          $data = $self->{url_cache}{$url} || $self->fetch($self->method, $url);
+          if (!($data = $self->{url_cache}{$url})) {
+            $data = $self->fetch($url);
+            if (my $pre_parser = $self->pre_parser) {
+              $data = $pre_parser->($data);
+            }
+          }
           # make sure our url_maker hasn't sent us into a twister
           if ($data && $data eq $last_data) {
             print STDERR "Redundant data fetch, assuming end of URLs.\n"
@@ -297,7 +314,7 @@ sub getter {
             last URL;
           }
           else {
-            $last_data = $data;
+            $last_data = defined $data ? $data : '';
           }
           $rows = $self->rows($self->parser->($data));
           last URL if $so_far_so_good && !@$rows;
@@ -456,7 +473,7 @@ sub getter {
         }
         @bad_symbols = $champion->empty_fetches;
       }
-      if (@bad_symbols && !$self->{quite}) {
+      if (@bad_symbols && !$self->{quiet}) {
         print STDERR "WARNING: Could not fetch $target_mode for some symbols (",join(', ', @bad_symbols), "). Abandoning request for these symbols.";
         if ($target_mode ne 'quote') {
           print STDERR " Don't worry, though, we were looking for ${target_mode}s. These are less likely to exist compared to quotes.";
@@ -656,7 +673,7 @@ sub precision_normalize_rows {
   foreach my $row (@$rows) {
     $row->[$_] = sprintf("%.$self->{quote_precision}f", $row->[$_])
       foreach @columns;
-    $row->[$vol_col] = sprintf("%u", $row->[$vol_col]);
+    $row->[$vol_col] = int $row->[$vol_col];
   }
   $rows;
 }
@@ -881,6 +898,14 @@ sub lineup {
 
 ### Parser methods
 
+sub pre_parser {
+  my($self, %parms) = @_;
+  my $parse_mode = $parms{parse_mode} || $self->parse_mode;
+  my $method = "${parse_mode}_pre_parser";
+  return unless $self->can($method);
+  $self->$method(%parms, parse_mode => $parse_mode);
+}
+
 sub parser {
   my($self, %parms) = @_;
   my $parse_mode = $parms{parse_mode} || $self->parse_mode;
@@ -926,16 +951,6 @@ sub html_parser {
 sub csv_parser {
   # Text::CSV_XS doesn't column slice or re-order, so we do.
   my $self = shift;
-  my $class;
-  my $xs_class = 'Text::CSV_XS';
-  eval "use $xs_class";
-  if ($@) {
-    my $pp_class = 'Text::CSV_PP';
-    eval "use $pp_class";
-    croak "Could not load either $xs_class or $pp_class : $@\n" if $@;
-    $class = $pp_class;
-  }
-  else { $class = $xs_class }
   my @patterns = $self->patterns(@_);
   sub {
     my $data = shift;
@@ -948,13 +963,13 @@ sub csv_parser {
     shift @csv_lines until $csv_lines[0] =~ /date|\d+/i || !@csv_lines;
     my $first_line = $csv_lines[0];
     my $sep_char = $first_line =~ /date\s*(\S)/i ? $1 : ',';
-    my $cp = $class->new({sep_char => $sep_char})
-      or croak "Problem creating $class\n";
+    my $cp = $CSV_Class->new({sep_char => $sep_char, binary => 1})
+      or croak "Problem creating $CSV_Class\n";
     my @pat_slice;
     if ($first_line =~ /date/i) {
       # derive column detection and ordering
       $cp->parse($first_line) or croak ("Problem parsing (" .
-        $cp->error_input . ")\n");
+        $cp->error_input . ") : " . $cp->error_diag . "\n");
       my @headers = $cp->fields;
       my @pats = @patterns;
       my @labels = map($self->pattern_label(pattern => $_), @patterns);
@@ -1155,6 +1170,7 @@ sub _save_restore_query {
 
 sub ymd {
   my $self = shift;
+  my @res = $_[0] =~ /^\s*(\d{4})(\d{2})(\d{2})/o;
   shift =~ /^\s*(\d{4})(\d{2})(\d{2})/o;
 }
 
@@ -1496,7 +1512,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2007 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2009 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

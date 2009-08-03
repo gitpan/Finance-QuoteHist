@@ -4,7 +4,7 @@ use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.00';
+$VERSION = '1.01';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -19,6 +19,11 @@ Date::Manip::Date_Init("TZ=GMT");
 # - this works too -
 #
 # http://finance.google.com/finance/historical?q=ibm&startdate=07+12%2C+2006&enddate=01+17%2C+2007&output=csv
+#
+# http://www.google.com/finance/historical?q=INDEXDJX:.DJI
+#
+# Note: as of 08/2009, regular symbols had csv available, but some
+# such as DJI^ do not.
 
 sub new {
   my $that = shift;
@@ -42,12 +47,11 @@ sub url_maker {
   $start_date ||= $self->start_date;
   $end_date   ||= $self->end_date;
 
-  my $host = 'finance.google.com';
+  my $host = 'www.google.com';
   my $cgi  = 'finance/historical';
 
-  my($d1, $d2) = @_;
-  my($sy, $sm, $sd) = $self->ymd($d1);
-  my($ey, $em, $ed) = $self->ymd($d2);
+  my($sy, $sm, $sd) = $self->ymd($start_date);
+  my($ey, $em, $ed) = $self->ymd($end_date);
   my $base_url = "http://$host/$cgi?";
   my @base_parms = (
     "q=$ticker",
@@ -143,7 +147,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2007 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2007-2009 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 
