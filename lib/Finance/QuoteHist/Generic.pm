@@ -21,7 +21,6 @@ use vars qw($VERSION);
 $VERSION = '1.11';
 
 use LWP::UserAgent;
-
 use HTTP::Request;
 use Date::Manip;
 Date::Manip::Date_Init("TZ=GMT");
@@ -34,6 +33,17 @@ if ($@) {
   $CSV_Class = $CSV_PP_Class;
   eval "use $CSV_Class";
   croak "Could not load either $CSV_XS_Class or $CSV_PP_Class : $@\n" if $@;
+}
+
+my $HTE_CLASS;
+my $HTE_Class = 'HTML::TableExtract';
+sub HTML_CLASS {
+  if (!$HTE_CLASS) {
+    eval "use $HTE_Class";
+    croak $@ if $@;
+    $HTE_CLASS = $HTE_Class;
+  }
+  $HTE_CLASS;
 }
 
 my $Default_Target_Mode = 'quote';
@@ -116,9 +126,9 @@ sub new {
   $parms{end_date} ||= __PACKAGE__->date_standardize('today');
   $parms{symbols} or croak "Symbol list required\n";
 
-  my $start_date = $parms{start_date}; delete $parms{start_date};
-  my $end_date   = $parms{end_date};   delete $parms{end_date};
-  my $symbols    = $parms{symbols};    delete $parms{symbols};
+  my $start_date = delete $parms{start_date};
+  my $end_date   = delete $parms{end_date};
+  my $symbols    = delete $parms{symbols};
 
   # Defaults
   $parms{zthresh}          = 30 unless $parms{zthresh};
@@ -141,6 +151,11 @@ sub new {
   }
   delete $parms{env_proxy};
   $self->{ua} = LWP::UserAgent->new(%$ua_params);
+
+  if ($self->granularity !~ /^d/i) {
+    $start_date = $self->snap_start_date($start_date);
+    $end_date   = $self->snap_end_date($end_date);
+  }
 
   $self->start_date($start_date);
   $self->end_date($end_date);
@@ -183,6 +198,8 @@ sub target_worthy {
   $worthy;
 }
 
+sub granularities { qw( daily ) }
+
 ### Data retrieval
 
 sub ua {
@@ -204,6 +221,7 @@ sub fetch {
   $self->{_lwp_success} = 0;
   while (! $response->is_success) {
     last unless $trys;
+    $self->{_status} = $response->status_line;
     print STDERR "Bad fetch",
        $response->is_error ? ' (' . $response->status_line . '), ' : ', ',
        "trying again...\n" if $self->{debug};
@@ -214,6 +232,10 @@ sub fetch {
   return undef unless $response->is_success;
   print STDERR 'Fetch complete. (' . length($response->content) . " chars)\n"
     if $self->{verbose};
+  open(F, '>', '/tmp/bzz.out');
+  print F $response->content;
+  close(F);
+  #$response->decoded_content;
   $response->content;
 }
 
@@ -375,9 +397,21 @@ sub getter {
         }
 
         if (@$rows) {
-          # Normalization. Saving the rounding operations until after
-          # the adjust routine is deliberate since we don't want to be
-          # auto-adjusting pre-rounded numbers.
+          # Normalization steps
+
+          if ($target_mode eq 'split') {
+            if (@{$rows->[0]} == 2) {
+              foreach (@$rows) {
+                if ($_->[-1] =~ /split\s+(\d+):(\d+)/is) {
+                  splice(@$_, -1, 1, $1, $2);
+                }
+              }
+            }
+          }
+
+          # Saving the rounding operations until after the adjust
+          # routine is deliberate since we don't want to be auto-
+          # adjusting pre-rounded numbers.
           $self->number_normalize_rows($rows);
   
           # Do the same for the extraction rows, plus store the
@@ -478,6 +512,9 @@ sub getter {
         if ($target_mode ne 'quote') {
           print STDERR " Don't worry, though, we were looking for ${target_mode}s. These are less likely to exist compared to quotes.";
         }
+        if ($self->{_status}) {
+          print STDERR "\n\nLast status: $self->{_status}\n";
+        }
         print STDERR "\n";
       }
     }
@@ -493,7 +530,7 @@ sub getter {
 
     # Return the loot.
     wantarray ? @rows : \@rows;
-  }
+  };
 }
 
 sub _store_results {
@@ -621,16 +658,10 @@ sub date_normalize {
   my($self, $date) = @_;
   return unless $date;
   my $normal_date;
-  if ($self->granularity eq 'monthly' &&
-      $date =~ m{^\s*(\D+)[-/]+(\d{2,})\s*$}) {
+  if ($self->granularity =~ /^m/ && $date =~ m{^\s*(\D+)[-/]+(\d{2,})\s*$}) {
     my($m, $y) = ($1, $2);
     $y += 1900 if length $y == 2;
-    $normal_date = ParseDate("$y$m");
-    ($m, $y) = UnixDate($normal_date, '%m', '%Y');
-    my $last = Date_DaysInMonth($m, $y);
-    $normal_date = ParseDate("$y/$m/$last");
-    $normal_date = Date_PrevWorkDay($normal_date)
-      unless Date_IsWorkDay($normal_date);
+    $normal_date = ParseDate($m =~ /^\d+$/ ? "$y/$m/01" : "$m 01 $y");
   }
   else {
     $normal_date = ParseDate($date);
@@ -638,6 +669,40 @@ sub date_normalize {
   $normal_date or return undef;
   return $normal_date if $self->target_mode eq 'intraday';
   join('/', $self->ymd($normal_date));
+}
+
+sub snap_start_date {
+  my($self, $date) = @_;
+  my $g = $self->granularity;
+  if ($g =~ /^(m|w)/i) {
+    if ($1 eq 'm') {
+      my($dom) = UnixDate($date, '%d') - 1;
+      $date = DateCalc($date, "- $dom days") if $dom;
+    }
+    else {
+      my $dow = Date_DayOfWeek(UnixDate($date, '%m', '%d', '%Y')) - 1;
+      $date = DateCalc($date, "- $dow days") if $dow;
+    }
+  }
+  $date;
+}
+
+sub snap_end_date {
+  my($self, $date) = @_;
+  my $g = $self->granularity;
+  if ($g =~ /^(m|w)/i) {
+    if ($1 eq 'm') {
+      my($m, $y) = UnixDate($date, '%m', '%Y');
+      my $last = Date_DaysInMonth($m, $y);
+      $date = ParseDateString("$y$m$last");
+    }
+    else {
+      my $dow = Date_DayOfWeek(UnixDate($date, '%m', '%d', '%Y')) - 1;
+      $date = DateCalc($date, "+ " . (6 - $dow) . ' days')
+        unless $dow == 6;
+    }
+  }
+  $date;
 }
 
 sub number_normalize_rows {
@@ -916,9 +981,7 @@ sub parser {
 sub html_parser {
   # HTML::TableExtract supports automatic column reordering.
   my $self = shift;
-  my $class = 'HTML::TableExtract';
-  eval "use $class";
-  croak "Oops using $class : $@\n" if $@;
+  my $class = HTML_CLASS;
   my @labels = $self->labels(@_);
   my @patterns = $self->patterns(@_);
   my(%pat_map, %label_map);
@@ -956,11 +1019,21 @@ sub csv_parser {
     my $data = shift;
     return [] unless defined $data;
     my @csv_lines = ref $data ? <$data> : split("\n", $data);
+    # BOM squad (byte order mark, as csv from google tends to be)
+    if ($csv_lines[0] =~ s/^\xEF\xBB\xBF//) {
+      for my $i (0 .. $#csv_lines) {
+        utf8::decode($csv_lines[$i]);
+      }
+    }
     # might be unix, windows, or mac style newlines
     s/\s+$// foreach @csv_lines;
     return [] if !@csv_lines || $csv_lines[0] =~ /(no data)|error/i;
     # attempt to get rid of comments at front of csv data
-    shift @csv_lines until $csv_lines[0] =~ /date|\d+/i || !@csv_lines;
+    while (@csv_lines) {
+      last if $csv_lines[0] =~ /date/i || $csv_lines[0] =~ /\d+$/;
+      print STDERR "CSV reject line: $csv_lines[0]\n" if $self->{verbose};
+      shift @csv_lines;
+    }
     my $first_line = $csv_lines[0];
     my $sep_char = $first_line =~ /date\s*(\S)/i ? $1 : ',';
     my $cp = $CSV_Class->new({sep_char => $sep_char, binary => 1})
@@ -1002,7 +1075,7 @@ sub csv_parser {
       push(@rows, [@fields[@pat_slice]]);
     }
     \@rows;
-  }
+  };
 }
 
 ### Accessors, generators
@@ -1279,8 +1352,7 @@ for multiple tickers.
 =item granularity
 
 Returns rows at 'daily', 'weekly', or 'monthly' levels of granularity.
-Defaults to 'daily'. (L<Finance::QuoteHist::BusinessWeek> also offers
-'quarterly' and 'intraday' granularities).
+Defaults to 'daily'.
 
 =item attempts
 
@@ -1512,7 +1584,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2009 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2010 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

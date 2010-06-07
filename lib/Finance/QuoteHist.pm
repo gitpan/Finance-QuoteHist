@@ -8,7 +8,9 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '1.12';
+$VERSION = '1.13';
+
+use Finance::QuoteHist::Generic;
 
 my @DEFAULT_ENGINES = qw(
   Finance::QuoteHist::Yahoo
@@ -43,6 +45,8 @@ sub new {
 
 sub default_lineup { @DEFAULT_ENGINES }
 
+sub granularities { Finance::QuoteHist::Generic->granularities }
+
 1;
 __END__
 
@@ -56,7 +60,7 @@ Finance::QuoteHist - Perl module for fetching historical stock quotes.
   $q = Finance::QuoteHist->new
      (
       symbols    => [qw(IBM UPS AMZN)],
-      start_date => '01/01/2008', # or 'one year ago', see Date::Manip
+      start_date => '01/01/2009', # or '1 year ago', see Date::Manip
       end_date   => 'today',
      );
 
@@ -86,7 +90,9 @@ stock quotes from the web.
 
 It is actually a front end to modules based on
 Finance::QuoteHist::Generic, the main difference being that it has a
-default I<lineup> of web sites from which to attempt quote retrieval.
+default I<lineup> of web sites from which to attempt quote retrieval. If
+the prospect of mixing data from multiple sites seems scary to you, then
+use one of the site-specific modules directly.
 
 Unless otherwise defined via the I<lineup> attribute, this module will
 select a I<lineup> for you, the default being:
@@ -162,7 +168,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2006 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2010 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

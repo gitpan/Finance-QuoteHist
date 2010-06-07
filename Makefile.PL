@@ -6,6 +6,7 @@ my %prereq_pm = (
   'HTTP::Request'      => 0,
   'HTML::TableExtract' => 2.07,
   'MIME::Base64'       => 0,
+  'Regexp::Common'     => 0,
   'Text::CSV_PP'       => 0,
 );
 

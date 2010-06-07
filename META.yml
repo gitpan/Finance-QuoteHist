@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Finance-QuoteHist
-version:            1.12
+version:            1.13
 abstract:           ~
 author:  []
 license:            unknown
@@ -13,6 +13,7 @@ requires:
     HTTP::Request:       0
     LWP::UserAgent:      0
     MIME::Base64:        0
+    Regexp::Common:      0
     Text::CSV_PP:        0
 no_index:
     directory:

@@ -1,10 +1,10 @@
-package Finance::QuoteHist::Google;
+package Finance::QuoteHist::StockNod;
 
 use strict;
 use vars qw(@ISA $VERSION);
 use Carp;
 
-$VERSION = '1.01';
+$VERSION = '1.00';
 
 use Finance::QuoteHist::Generic;
 @ISA = qw(Finance::QuoteHist::Generic);
@@ -12,19 +12,11 @@ use Finance::QuoteHist::Generic;
 use Date::Manip;
 Date::Manip::Date_Init("TZ=GMT");
 
+use POSIX qw( ceil );
+
 # Example URL:
 #
-# http://www.google.com/finance/historical?q=IBM&startdate=Nov%2011%2C%202008&enddate=Feb%27%2C%202009&output=csv
-#
-# This also works:
-#
-# http://www.google.com/finance/historical?q=IBM&startdate=2008-11-11&enddate=2009-02-27&output=csv
-#
-# weekly:
-#
-# http://www.google.com/finance/historical?cid=99624&startdate=2008-11-11&enddate=2009-02-27&histperiod=weekly&output=csv
-#
-# Note: regular symbols have csv available, but some such as .DJI do not.
+# http://quotes.stocknod.com/stocknod/?Method=gethistoricalcsv&Month=6&Page=HISTORICAL&Ticker=IBM&Year=2005&Range=3
 
 sub new {
   my $that = shift;
@@ -36,15 +28,12 @@ sub new {
   $self;
 }
 
-sub url_base_csv { 'http://www.google.com/finance/historical' }
-
-sub granularities { qw( daily weekly ) }
+sub url_base_csv { 'http://quotes.stocknod.com/stocknod/' }
 
 sub url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
-  my $grain       = $parms{granularity} || $self->granularity;
   # *always* block unknown target/mode cominations
   return undef unless $target_mode eq 'quote' && $parse_mode eq 'csv';
   my($ticker, $start_date, $end_date) =
@@ -54,12 +43,21 @@ sub url_maker {
 
   my($sy, $sm, $sd) = $self->ymd($start_date);
   my($ey, $em, $ed) = $self->ymd($end_date);
+  my $months  = DateCalc(ParseDate($start_date), ParseDate($end_date), 1);
+  $months = ceil(Delta_Format($months, 4, '%Mt'));
+  my $reach = DateCalc($end_date, "- $months months");
+  while (DateCalc($end_date, "- $months months") gt $start_date) {
+    ++$months;
+  }
   my @base_parms = (
+    'Method=gethistoricalcsv',
+    sprintf("Month=%d", $em),
+    'Page=HISTORICAL',
+    "Ticker=$ticker",
+    "Year=$ey",
     "q=$ticker",
-    "startdate=$sy-$sm-$sd", "enddate=$ey-$em+$ed",
+    "Range=$months",
   );
-  push(@base_parms, 'histperiod=weekly') if $grain && $grain =~ /^w/i;
-  push(@base_parms, "output=csv");
   my @urls = join('?', $self->url_base_csv, join('&', @base_parms));
 
   sub { pop @urls };
@@ -71,15 +69,15 @@ __END__
 
 =head1 NAME
 
-Finance::QuoteHist::Google - Site-specific class for retrieving historical stock quotes.
+Finance::QuoteHist::StockNod - Site-specific class for retrieving historical stock quotes.
 
 =head1 SYNOPSIS
 
-  use Finance::QuoteHist::Google;
-  $q = Finance::QuoteHist::Google->new
+  use Finance::QuoteHist::StockNod;
+  $q = Finance::QuoteHist::StockNod->new
      (
       symbols    => [qw(IBM UPS AMZN)],
-      start_date => '01/01/1999',
+      start_date => '01/01/2009',
       end_date   => 'today',
      );
 
@@ -90,12 +88,11 @@ Finance::QuoteHist::Google - Site-specific class for retrieving historical stock
 
 =head1 DESCRIPTION
 
-Finance::QuoteHist::Google is a subclass of
+Finance::QuoteHist::StockNod is a subclass of
 Finance::QuoteHist::Generic, specifically tailored to read historical
-quotes from the Google web site (I<http://finance.google.com/>).
+quotes from the StockNod web site (I<http://stocknod.com/>).
 
-Google does not currently provide information on dividends or
-splits.
+StockNod does not currently provide information on dividends or splits.
 
 Please see L<Finance::QuoteHist::Generic(3)> for more details on usage
 and available methods. If you just want to get historical quotes and are
@@ -134,9 +131,9 @@ Furthermore, the data from these web sites is usually not even
 guaranteed by the web sites themselves, and oftentimes is acquired
 elsewhere.
 
-Details for Googles's terms of use can be found here:
+Details for StockNod's terms of use can be found here:
 
-  http://www.google.com/accounts/TOS?loc=us
+  http://www.financialcontent.com/web2008/tos.php
 
 If you still have concerns, then use another site-specific historical
 quote instance, or none at all.

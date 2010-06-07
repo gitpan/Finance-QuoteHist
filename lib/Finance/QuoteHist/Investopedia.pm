@@ -1,4 +1,4 @@
-package Finance::QuoteHist::Google;
+package Finance::QuoteHist::Investopedia;
 
 use strict;
 use vars qw(@ISA $VERSION);
@@ -14,17 +14,15 @@ Date::Manip::Date_Init("TZ=GMT");
 
 # Example URL:
 #
-# http://www.google.com/finance/historical?q=IBM&startdate=Nov%2011%2C%202008&enddate=Feb%27%2C%202009&output=csv
+# http://simulator.investopedia.com/stocks/historicaldata.aspx?SearchType=0&s=IBM&dateStart=2008-5-8&dateEnd=2009-6-7&Download=1
 #
-# This also works:
+# for dividend:
 #
-# http://www.google.com/finance/historical?q=IBM&startdate=2008-11-11&enddate=2009-02-27&output=csv
+# http://simulator.investopedia.com/stocks/historicaldata.aspx?SearchType=1&s=NOVAD&dateStart=2010-5-30&dateEnd=2010-6-7
 #
-# weekly:
+# for split:
 #
-# http://www.google.com/finance/historical?cid=99624&startdate=2008-11-11&enddate=2009-02-27&histperiod=weekly&output=csv
-#
-# Note: regular symbols have csv available, but some such as .DJI do not.
+# http://simulator.investopedia.com/stocks/historicaldata.aspx?SearchType=2&s=NOVAD&dateStart=2010-5-30&dateEnd=2010-6-7
 
 sub new {
   my $that = shift;
@@ -32,21 +30,39 @@ sub new {
   my %parms = @_;
   my $self = __PACKAGE__->SUPER::new(%parms);
   bless $self, $class;
-  $self->parse_mode('csv');
+  $self->parse_mode('html');
   $self;
 }
 
-sub url_base_csv { 'http://www.google.com/finance/historical' }
+sub url_base_html {
+  'http://simulator.investopedia.com/stocks/historicaldata.aspx'
+}
 
-sub granularities { qw( daily weekly ) }
+sub labels {
+  my($self, %parms) = @_;
+  my $target_mode = $parms{target_mode} || $self->target_mode;
+  return(qw( date split )) if $target_mode eq 'split';
+  $self->SUPER::labels(%parms);
+}
 
 sub url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
   my $parse_mode  = $parms{parse_mode}  || $self->parse_mode;
-  my $grain       = $parms{granularity} || $self->granularity;
   # *always* block unknown target/mode cominations
-  return undef unless $target_mode eq 'quote' && $parse_mode eq 'csv';
+  return undef unless $parse_mode eq 'html';
+  my $search_type;
+  if ($target_mode eq 'quote') {
+    $search_type = 0;
+  }
+  elsif ($target_mode eq 'dividend') {
+    $search_type = 1;
+  }
+  elsif ($target_mode eq 'split') {
+    $search_type = 2;
+  }
+  my $download = $target_mode eq 'quote' ? 1 : 0;
+
   my($ticker, $start_date, $end_date) =
     @parms{qw(symbol start_date end_date)};
   $start_date ||= $self->start_date;
@@ -55,12 +71,13 @@ sub url_maker {
   my($sy, $sm, $sd) = $self->ymd($start_date);
   my($ey, $em, $ed) = $self->ymd($end_date);
   my @base_parms = (
-    "q=$ticker",
-    "startdate=$sy-$sm-$sd", "enddate=$ey-$em+$ed",
+    "SearchType=$search_type",
+    "s=$ticker",
+    "dateStart=$sy-$sm-$sd",
+    "dateEnd=$ey-$em-$ed",
   );
-  push(@base_parms, 'histperiod=weekly') if $grain && $grain =~ /^w/i;
-  push(@base_parms, "output=csv");
-  my @urls = join('?', $self->url_base_csv, join('&', @base_parms));
+  push(@base_parms, 'Download=1') if $download;
+  my @urls = join('?', $self->url_base_html, join('&', @base_parms));
 
   sub { pop @urls };
 }
@@ -71,15 +88,15 @@ __END__
 
 =head1 NAME
 
-Finance::QuoteHist::Google - Site-specific class for retrieving historical stock quotes.
+Finance::QuoteHist::Investopedia - Site-specific class for retrieving historical stock quotes.
 
 =head1 SYNOPSIS
 
-  use Finance::QuoteHist::Google;
-  $q = Finance::QuoteHist::Google->new
+  use Finance::QuoteHist::Investopedia;
+  $q = Finance::QuoteHist::Investopedia->new
      (
       symbols    => [qw(IBM UPS AMZN)],
-      start_date => '01/01/1999',
+      start_date => '01/01/2009',
       end_date   => 'today',
      );
 
@@ -90,12 +107,10 @@ Finance::QuoteHist::Google - Site-specific class for retrieving historical stock
 
 =head1 DESCRIPTION
 
-Finance::QuoteHist::Google is a subclass of
+Finance::QuoteHist::Investopedia is a subclass of
 Finance::QuoteHist::Generic, specifically tailored to read historical
-quotes from the Google web site (I<http://finance.google.com/>).
-
-Google does not currently provide information on dividends or
-splits.
+quotes, dividends, and splits from the Investopedia web site
+(I<http://investopedia.com/>).
 
 Please see L<Finance::QuoteHist::Generic(3)> for more details on usage
 and available methods. If you just want to get historical quotes and are
@@ -116,6 +131,18 @@ rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
 B<Open>, B<High>, B<Low>, B<Close>, and B<Volume> for that date. Quote
 values are pre-adjusted for this site.
 
+=item dividends()
+
+Returns a list of rows (or a reference to an array containing those
+rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
+and amount of the B<Dividend>, in that order.
+
+=item splits()
+
+Returns a list of rows (or a reference to an array containing those
+rows, if in scalar context). Each row contains the B<Symbol>, B<Date>,
+B<Post> split shares, and B<Pre> split shares, in that order.
+
 =back
 
 =head1 REQUIRES
@@ -134,9 +161,9 @@ Furthermore, the data from these web sites is usually not even
 guaranteed by the web sites themselves, and oftentimes is acquired
 elsewhere.
 
-Details for Googles's terms of use can be found here:
+Details for Investopedia's terms of use can be found here:
 
-  http://www.google.com/accounts/TOS?loc=us
+  http://www.investopedia.com/corp/terms.asp
 
 If you still have concerns, then use another site-specific historical
 quote instance, or none at all.

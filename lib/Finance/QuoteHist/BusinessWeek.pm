@@ -94,6 +94,8 @@ sub businessweek_javascript_parser {
   };
 }
 
+sub granularities { qw( daily weekly monthly ) }
+
 sub url_maker {
   my($self, %parms) = @_;
   my $target_mode = $parms{target_mode} || $self->target_mode;
@@ -117,13 +119,24 @@ sub url_maker {
   $start_date ||= $self->start_date;
   $end_date   ||= $self->end_date;
 
+  # businessweek has a one-off error on the start date when using weekly
+  # or monthly mode
+  if ($self->granularity =~ /^(m|w)/i) {
+    if ($1 eq 'w') {
+      $start_date = DateCalc($start_date, '- 1 week');
+    }
+    else {
+      $start_date = DateCalc($start_date, '- 1 month');
+    }
+  }
+
   my $host = 'investing.businessweek.com';
   my $path = 'businessweek/research/common/charts/update_historical_chart.asp';
 
   # this also worked
   # my $path = '/research/stocks/snapshot/historical.asp';
 
-  my %parms = (
+  my %query = (
     symbol        => $ticker,
     freq          => $grain,
     dMin          => $self->date_to_excel_daynum($start_date),
@@ -143,7 +156,7 @@ sub url_maker {
 
 
   my $url = "http://$host/$path?" .
-            join('&', map { "$_=$parms{$_}" } sort keys %parms);
+            join('&', map { "$_=$query{$_}" } sort keys %query);
 
   print STDERR "URL: $url\n" if DEBUG;
 
@@ -332,7 +345,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2006-2009 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2006-2010 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

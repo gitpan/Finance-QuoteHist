@@ -1,40 +1,40 @@
 use strict;
-use lib './lib';
 
 my $tcount;
-BEGIN { $tcount = 18 }
+BEGIN { $tcount = 6 }
 use Test::More tests => $tcount;
 
 use FindBin;
 use lib $FindBin::RealBin;
 use testload;
 
-use Finance::QuoteHist;
-
 SKIP: {
-  skip("dividends (no connect)", $tcount) unless network_okay();
-  my($label, $q, @rows);
-  $label = "filtered dividends";
-  $q = new_quotehist($Ssym, $Sstart, $Send, parse_mode => 'html');
-
-  # main query, from which divs should be filtered
-  @rows = $q->quotes;
-  # retrieve what was filtered
-  @rows = $q->dividends;
-  cmp_ok(scalar @Dividends, '==', scalar @rows, "$label (rows)");
-  foreach (0 .. $#rows) {
-    my @entry = split(/:/, $Dividends[$_]);
-    cmp_ok($rows[$_][0], 'eq', $entry[0], "$label (date)");
-    cmp_ok($rows[$_][1], 'eq', $entry[1], "$label (value)");
+  skip("dividend (no connect)", $tcount) unless network_ok();
+  for my $src (sources()) {
+    SKIP: {
+      my($m, $sym, $start, $end, $dat) = basis($src, 'dividend');
+      next unless $m;
+      skip("skip developer dividend $src test", 2)
+        unless DEV_TESTS || $src eq 'plain';
+      eval "use $m";
+      my %parms = ( class => $m );
+      dividend_cmp(
+        $sym, $start, $end,
+        "direct dividend ($src)",
+        $dat, %parms
+      );
+    }
   }
+}
 
-  $label = "direct dividends";
-  $q = new_quotehist($Dsym, $Dstart, $Dend);
-  @rows = $q->dividends;
-  cmp_ok(scalar @Dividends, '==', scalar @rows, "$label (rows)");
-  foreach (0 .. $#rows) {
-    my @entry = split(/:/, $Dividends[$_]);
-    cmp_ok($rows[$_][0], 'eq', $entry[0], "$label (date)");
-    cmp_ok($rows[$_][1], 'eq', $entry[1], "$label (value)");
+sub dividend_cmp {
+  @_ >= 5 or die "Problem with args\n";
+  my($symbol, $start_date, $end_date, $label, $dat, %parms) = @_;
+  my $q = new_quotehist($symbol, $start_date, $end_date, %parms);
+  my @rows = $q->dividends;
+  cmp_ok(scalar @rows, '==', scalar @$dat, "$label (rows)");
+  for my $i (0 .. $#rows) {
+    $rows[$i] = join(':', @{$rows[$i]});
   }
+  is_deeply(\@rows, $dat, "$label (content)");
 }

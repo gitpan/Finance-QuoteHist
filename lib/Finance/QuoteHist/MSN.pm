@@ -33,6 +33,7 @@ sub new {
   $self;
 }
 
+sub granularities { qw( daily weekly monthly ) }
 
 sub url_maker {
   my($self, %parms) = @_;

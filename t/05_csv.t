@@ -24,7 +24,7 @@ SKIP: {
   skip "$class not installed",  $each_count unless $pp_present;
   use_ok($class);
   my $cp = $class->new;
-  csv_parse($cp, $CSV);
+  csv_parse($cp, csv_content());
 }
 
 SKIP: {
@@ -32,7 +32,7 @@ SKIP: {
   skip "$class not installed",  $each_count unless $xs_present;
   use_ok($class);
   my $cp = $class->new;
-  csv_parse($cp, $CSV);
+  csv_parse($cp, csv_content());
 }
 
 ok($pp_present || $xs_present, "csv parsing class present");

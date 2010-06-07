@@ -8,88 +8,67 @@ use HTTP::Request;
 
 use Finance::QuoteHist;
 
-use vars qw( @ISA @EXPORT $Dat_Dir
-             @Quotes    $Qsym $Qstart $Qend
-             @Dividends $Dsym $Dstart $Dend
-             @Splits    $Ssym $Sstart $Send
-             @Quotes_W @Quotes_M $Q_Grain
-             $CSV
-           );
+use constant DEV_TESTS => $ENV{HTE_DEV_TESTS};
+
+use vars qw( @ISA @EXPORT );
 
 require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(
-             $Dat_Dir
-             @Quotes    $Qsym $Qstart $Qend
-             @Dividends $Dsym $Dstart $Dend
-             @Splits    $Ssym $Sstart $Send
-             @Quotes_W @Quotes_M $Q_Grain
-             $CSV
-             network_okay new_quotehist
-            );
+  network_ok
+  new_quotehist
+  modules
+  sources
+  modes
+  granularities
+  basis
+  csv_content
+  DEV_TESTS
+);
 
-my $base_dir;
+my $Dat_Dir;
 BEGIN {
-  my $pkg = __PACKAGE__;
-  $pkg =~ s%::%/%g;
-  $pkg .= '.pm';
-  my @parts = File::Spec->splitpath(File::Spec->canonpath($INC{$pkg}));
-  $parts[-1] = '';
-  $base_dir = File::Spec->catpath(@parts);
+  my($vol, $dir, $file) = File::Spec->splitpath(__FILE__);
+  my @parts = File::Spec->splitdir($dir);
+  pop @parts while @parts && $parts[-1] ne 't';
+  $dir = File::Spec->catdir(@parts, 'dat');
+  $Dat_Dir = File::Spec->catpath($vol, $dir, '');
 }
-$Dat_Dir = $base_dir;
 
-my $quote_file    = "$Dat_Dir/quotes.dat";
-my $quote_w_file  = "$Dat_Dir/quotes_w.dat";
-my $quote_m_file  = "$Dat_Dir/quotes_m.dat";
-my $dividend_file = "$Dat_Dir/dividends.dat";
-my $split_file    = "$Dat_Dir/splits.dat";
-my $csv_file      = "$Dat_Dir/csv.dat";
-
--f or die "$_ not found.\n"
-  foreach ($quote_file, $quote_w_file, $quote_m_file,
-           $dividend_file, $split_file);
-
-open(F, "<$quote_file") or die "Problem reading $quote_file : $!\n";
-@Quotes = <F>;
-chomp @Quotes;
+my $csv_txt;
+my $csv_file = "$Dat_Dir/csv.dat";
+open(F, '<', $csv_file) or die "problem reading $csv_file : $!";
+$csv_txt = join('', <F>);
 close(F);
 
-open(F, "<$quote_w_file") or die "Problem reading $quote_w_file : $!\n";
-@Quotes_W = <F>;
-chomp @Quotes_W;
-close(F);
+sub csv_content { $csv_txt }
 
-open(F, "<$quote_m_file") or die "Problem reading $quote_m_file : $!\n";
-@Quotes_M = <F>;
-chomp @Quotes_M;
-close(F);
+my(%Modules, %Files);
 
-open(F, "<$dividend_file") or die "Problem reading $dividend_file : $!\n";
-@Dividends = <F>;
-chomp @Dividends;
-close(F);
-
-open(F, "<$split_file") or die "Problem reading $split_file : $!\n";
-@Splits = <F>;
-chomp @Splits;
-close(F);
-
-open(F, "<$csv_file") or die "Problem reading $csv_file : $!\n";
-{ local $/; $CSV = <F> }
-close(F);
-
-($Qsym, $Qstart, $Qend) = split(',', shift @Quotes);
-($Dsym, $Dstart, $Dend) = split(',', shift @Dividends);
-($Ssym, $Sstart, $Send) = split(',', shift @Splits);
-
-# currently we share the same symbol, start, end as @Quotes
-shift @Quotes_W;
-shift @Quotes_M;
+for my $f (glob("$Dat_Dir/*.dat")) {
+  my($vol, $dir, $label) = File::Spec->splitpath($f);
+  $label =~ s/\.dat$//;
+  next unless $label =~ /^(quote|dividend|split)_/;
+  open(F, '<', $f) or die "problem reading $f : $!";
+  my @lines = <F>;
+  chomp @lines;
+  close(F);
+  my $class = shift @lines;
+  ++$Modules{$class};
+  my($sym, $start, $end) = split(/,/, shift @lines);
+  if ($1 eq 'quote') {
+    my($mode, $gran, $source) = split(/_/, $label);
+    $Files{$source}{$mode}{$gran} = [$class, $sym, $start, $end, \@lines];
+  }
+  else {
+    my($mode, $source) = split(/_/, $label);
+    $Files{$source}{$mode} = [$class, $sym, $start, $end, \@lines];
+  }
+}
 
 my $Network_Up;
 
-sub network_okay {
+sub network_ok {
   if (! defined $Network_Up) {
     my %ua_parms;
     if ($ENV{http_proxy}) {
@@ -97,7 +76,7 @@ sub network_okay {
     }
     my $ua = LWP::UserAgent->new(%ua_parms)
       or die "Problem creating user agent\n";
-    my $request = HTTP::Request->new('GET', 'http://finance.yahoo.com')
+    my $request = HTTP::Request->new('HEAD', 'http://finance.yahoo.com')
       or die "Problem creating http request object\n";
     my $response = $ua->request($request, @_);
     $Network_Up = $response->is_success;
@@ -119,6 +98,35 @@ sub new_quotehist {
     auto_proxy => 1,
     %parms,
   );
+}
+
+sub modules { sort keys %Modules }
+
+sub sources { sort keys %Files }
+
+sub modes {
+  my $src = shift || return;
+  my $h = $Files{$src} || return;
+  sort keys %$h;
+}
+
+sub granularities {
+  my $src = shift || return;
+  my $h = $Files{$src}{quote} || return;
+  sort keys %$h;
+}
+
+sub basis {
+  my($src, $mode, $gran) = @_;
+  my $basis;
+  if ($mode eq 'quote') {
+    $basis = $Files{$src}{$mode}{$gran};
+  }
+  else {
+    $basis = $Files{$src}{$mode};
+  }
+  return unless $basis;
+  @$basis;
 }
 
 1;

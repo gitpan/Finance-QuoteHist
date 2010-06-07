@@ -84,6 +84,8 @@ sub url_base_csv    { 'http://ichart.finance.yahoo.com/table.csv' }
 sub url_base_html   { 'http://finance.yahoo.com/q/hp' }
 sub url_base_splits { 'http://finance.yahoo.com/q/bc' }
 
+sub granularities { qw( daily weekly monthly ) }
+
 # Yahoo can fetch dividends and splits. They can be extracted from
 # regular quote results or queried directly.
 
@@ -112,12 +114,13 @@ sub splits {
       my($split_line) = grep(defined && /split/i, $table->hrow);
       $split_line =~ s/^\s*splits:?\s*//i;
       my @rows;
-      foreach (grep(/\w+/, split(/\s*,\s+/, $split_line))) {
+      foreach (grep(/\w+/, split(/\]\s*,\s+/, $split_line))) {
         s/\s+$//;
         next if /none/i;
-        my($date, $post, $pre) = /^(\S+)\D*(\d+):(\d+)/m;
-        $date = ParseDate($date)
-          or croak "Problem parsing date string '$date'\n";
+        next unless s/\s*\[(\d+):(\d+).*$//;
+        my($post, $pre) = ($1, $2);
+        my $date = ParseDate($_)
+          or croak "Problem parsing date string '$_'\n";
         push(@rows, [$date, $post, $pre]);
       }
       @rows = $self->rows(\@rows);
@@ -272,7 +275,7 @@ Finance::QuoteHist::Yahoo - Site-specific subclass for retrieving historical sto
   $q = new Finance::QuoteHist::Yahoo
      (
       symbols    => [qw(IBM UPS AMZN)],
-      start_date => '01/01/1999',
+      start_date => '01/01/2009',
       end_date   => 'today',
      );
 
@@ -300,8 +303,8 @@ quotes, dividends, and splits from the Yahoo web site
 (I<http://table.finance.yahoo.com/>).
 
 For quotes and dividends, Yahoo can return data quickly in CSV format.
-Both of these can also be extracted from HTML tables. Splits are only
-available embedded in the HTML version of dividends.
+Both of these can also be extracted from HTML tables. Splits are
+extracted from the HTML of the 'Basic Chart' page for that ticker.
 
 There are no date range restrictions on CSV queries for quotes and
 dividends.
@@ -397,7 +400,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2006 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2010 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself.
 
