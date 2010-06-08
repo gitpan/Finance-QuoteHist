@@ -18,7 +18,7 @@ use Carp;
 
 use vars qw($VERSION);
 
-$VERSION = '1.11';
+$VERSION = '1.14';
 
 use LWP::UserAgent;
 use HTTP::Request;
@@ -221,7 +221,7 @@ sub fetch {
   $self->{_lwp_success} = 0;
   while (! $response->is_success) {
     last unless $trys;
-    $self->{_status} = $response->status_line;
+    $self->{_lwp_status}  = $response->status_line;
     print STDERR "Bad fetch",
        $response->is_error ? ' (' . $response->status_line . '), ' : ', ',
        "trying again...\n" if $self->{debug};
@@ -232,10 +232,6 @@ sub fetch {
   return undef unless $response->is_success;
   print STDERR 'Fetch complete. (' . length($response->content) . " chars)\n"
     if $self->{verbose};
-  open(F, '>', '/tmp/bzz.out');
-  print F $response->content;
-  close(F);
-  #$response->decoded_content;
   $response->content;
 }
 
@@ -326,7 +322,11 @@ sub getter {
           if (!($data = $self->{url_cache}{$url})) {
             $data = $self->fetch($url);
             if (my $pre_parser = $self->pre_parser) {
-              $data = $pre_parser->($data);
+              $data = $pre_parser->(
+                $data,
+                target_mode => $target_mode,
+                parse_mode  => $parse_mode,
+              );
             }
           }
           # make sure our url_maker hasn't sent us into a twister
@@ -351,7 +351,7 @@ sub getter {
           # period...or perhaps there were, but it is a defunct
           # symbol...whatever...quotes should always be present unless
           # they are defunct, which is dealt with later.
-          if (!$self->{_lwp_success} || !defined $data) {
+          if (!$self->{_lwp_success} || !$data) {
             ++$empty_fetch{$s};
             @$rows = ();
           }
@@ -512,8 +512,8 @@ sub getter {
         if ($target_mode ne 'quote') {
           print STDERR " Don't worry, though, we were looking for ${target_mode}s. These are less likely to exist compared to quotes.";
         }
-        if ($self->{_status}) {
-          print STDERR "\n\nLast status: $self->{_status}\n";
+        if ($self->{_lwp_status}) {
+          print STDERR "\n\nLast status: $self->{_lwp_status}\n";
         }
         print STDERR "\n";
       }
@@ -1049,12 +1049,13 @@ sub csv_parser {
       my(%pat_map, %label_map);
       HEADER: for my $i (0 .. $#headers) {
         last unless @pats;
-        my $label = $labels[$i];
         my $header = $headers[$i];
         for my $pi (0 .. $#pats) {
           my $pat = $pats[$pi];
           if ($header =~ /$pat/) {
-            splice(@pats, $pi, 1);
+            my $label = $labels[$pi];
+            splice(@pats,   $pi, 1);
+            splice(@labels, $pi, 1);
             $pat_map{$pat} = $i;
             $label_map{$label} = $i;
             next HEADER;

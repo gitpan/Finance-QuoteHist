@@ -89,8 +89,45 @@ sub granularities { qw( daily weekly monthly ) }
 # Yahoo can fetch dividends and splits. They can be extracted from
 # regular quote results or queried directly.
 
+sub html_parser {
+  my($self, %parms) = @_;
+  my $target_mode = $parms{target_mode} || $self->target_mode;
+  return $self->SUPER::html_parser(%parms) unless $target_mode eq 'split';
+  sub {
+    my $data = shift;
+    my $html_string;
+    if (ref $data) {
+      local($/);
+      $html_string = <$data>;
+    }
+    else {
+      $html_string = $data;
+    }
+    my %te_parms = (
+      headers => ['Splits:'],
+      debug   => $self->{debug},
+    );
+    my $te = HTML::TableExtract->new(%te_parms);
+    $te->parse($html_string);
+    my $table = $te->first_table_found || return [];
+    my($split_line) = grep(defined && /split/i, $table->hrow);
+    $split_line =~ s/^\s*splits:?\s*//i;
+    my @rows;
+    foreach (grep(/\w+/, split(/\]\s*,\s+/, $split_line))) {
+      s/\s+$//;
+      next if /none/i;
+      next unless s/\s*\[(\d+):(\d+).*$//;
+      my($post, $pre) = ($1, $2);
+      my $date = ParseDate($_)
+        or croak "Problem parsing date string '$_'\n";
+      push(@rows, [$date, $post, $pre]);
+    }
+    \@rows;
+  };
+}
+
 # Newer full-custom direct query for yahoo splits
-sub splits {
+sub _splits_old {
   my $self = shift;
   my @symbols = @_ ? @_ : $self->symbols;
   my $target_mode = 'split';
@@ -107,12 +144,15 @@ sub splits {
     my $data = $self->{url_cache}{$url} || $self->fetch($url);
     $self->{url_cache}{$url} = $data;
     print STDERR "Custom parse for ($symbol:$target_mode)\n" if $self->{verbose};
-    my $te = HTML::TableExtract->new(headers => ['Splits:']);
+    my $te = HTML::TableExtract->new(headers => ['Splits:'], debug => 5);
+    print STDERR "DATA: |||\n$data\n|||\n";
     $te->parse($data);
     my $table = $te->first_table_found;
+    print STDERR "TABLE: ", $table || 'undef', "\n";
     if ($table) {
       my($split_line) = grep(defined && /split/i, $table->hrow);
       $split_line =~ s/^\s*splits:?\s*//i;
+      print STDERR "SPLIT LINE: ||| $split_line |||\n";
       my @rows;
       foreach (grep(/\w+/, split(/\]\s*,\s+/, $split_line))) {
         s/\s+$//;
@@ -223,6 +263,12 @@ sub url_maker {
   $end_date   ||= $self->end_date;
   if ($start_date && $end_date && $start_date gt $end_date) {
     ($start_date, $end_date) = ($end_date, $start_date);
+  }
+
+  if ($target_mode eq 'split') {
+    $self->parse_mode('html');
+    my @urls = $self->url_base_splits() . "?s=$ticker&t=my";
+    return sub { pop @urls };
   }
 
   my $base_url = $parse_mode eq 'csv' ? $self->url_base_csv() :

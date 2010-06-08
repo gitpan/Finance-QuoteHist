@@ -1,6 +1,6 @@
 Revision history for Perl extension Finance::QuoteHist.
 
-1.13  Mon Jun  7 18:36:30 EDT 2010
+1.14  Mon Jun  7 18:36:30 EDT 2010
     - Fixed several syntax issues that were tripping up -w
     - Fixed the utf8 Byte Order Mark issues with google csv
     - Added modules for Investopedia.com and StockNod.com

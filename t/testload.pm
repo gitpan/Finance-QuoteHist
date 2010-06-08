@@ -8,7 +8,7 @@ use HTTP::Request;
 
 use Finance::QuoteHist;
 
-use constant DEV_TESTS => $ENV{HTE_DEV_TESTS};
+use constant DEV_TESTS => $ENV{FQH_DEV_TESTS};
 
 use vars qw( @ISA @EXPORT );
 
