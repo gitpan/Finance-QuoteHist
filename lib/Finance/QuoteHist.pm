@@ -8,7 +8,7 @@ use strict;
 use vars qw($VERSION $AUTOLOAD);
 use Carp;
 
-$VERSION = '1.14';
+$VERSION = '1.15';
 
 use Finance::QuoteHist::Generic;
 

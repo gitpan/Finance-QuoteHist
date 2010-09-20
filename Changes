@@ -1,5 +1,10 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.15  Mon Sep 20 18:48:00 EDT 2010
+    - Fixed tests so that they no longer rely upon historical
+      volumes since these appear to change every now and then
+      whenever Yahoo decides to tweak their algorithm.
+
 1.14  Mon Jun  7 18:36:30 EDT 2010
     - Fixed several syntax issues that were tripping up -w
     - Fixed the utf8 Byte Order Mark issues with google csv

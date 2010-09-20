@@ -36,6 +36,8 @@ sub quote_cmp {
   my @rows = $q->quotes;
   cmp_ok(scalar @rows, '==', scalar @$dat, "$label (rows)");
   for my $i (0 .. $#rows) {
+    # drop volume, too variable for testing
+    pop @{$rows[$i]};
     $rows[$i] = join(':', @{$rows[$i]});
   }
   is_deeply(\@rows, $dat, "$label (content)");

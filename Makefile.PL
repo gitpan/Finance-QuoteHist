@@ -7,7 +7,7 @@ my %prereq_pm = (
   'HTML::TableExtract' => 2.07,
   'MIME::Base64'       => 0,
   'Regexp::Common'     => 0,
-  'Text::CSV_PP'       => 0,
+  'Text::CSV'          => 0,
 );
 
 eval "use Text::CSV_XS";

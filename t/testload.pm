@@ -58,6 +58,10 @@ for my $f (glob("$Dat_Dir/*.dat")) {
   my($sym, $start, $end) = split(/,/, shift @lines);
   if ($1 eq 'quote') {
     my($mode, $gran, $source) = split(/_/, $label);
+    # drop volumes, they've proven to be too variable for testing
+    for my $i (0 .. $#lines) {
+      $lines[$i] =~ s/:[^:]+$//;
+    }
     $Files{$source}{$mode}{$gran} = [$class, $sym, $start, $end, \@lines];
   }
   else {
