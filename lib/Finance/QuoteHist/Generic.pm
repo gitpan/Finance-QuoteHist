@@ -1340,7 +1340,7 @@ These dates get parsed by the C<ParseDate()> method in Date::Manip, so
 see L<Date::Manip(3)> for more information on valid date strings. They
 are quite flexible, and include such strings as '1 year ago'. Date
 boundaries can also be dynamically set with methods of the same
-name. The absense of a start date means go to the beginning of the
+name. The absence of a start date means go to the beginning of the
 history. The absence of an end date means go up to the most recent
 historical date. The absence of both means grab everything.
 

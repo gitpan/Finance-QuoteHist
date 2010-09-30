@@ -10,6 +10,8 @@ use Finance::QuoteHist;
 
 use constant DEV_TESTS => $ENV{FQH_DEV_TESTS};
 
+use constant GOLDEN_CHILD => 'yahoo';
+
 use vars qw( @ISA @EXPORT );
 
 require Exporter;
@@ -23,6 +25,7 @@ require Exporter;
   granularities
   basis
   csv_content
+  GOLDEN_CHILD
   DEV_TESTS
 );
 
@@ -58,9 +61,13 @@ for my $f (glob("$Dat_Dir/*.dat")) {
   my($sym, $start, $end) = split(/,/, shift @lines);
   if ($1 eq 'quote') {
     my($mode, $gran, $source) = split(/_/, $label);
-    # drop volumes, they've proven to be too variable for testing
-    for my $i (0 .. $#lines) {
-      $lines[$i] =~ s/:[^:]+$//;
+    if ($lines[0] =~ tr/:/:/ > 6) {
+      # drop adjusted, they've proven to be too variable for testing
+      for my $i (0 .. $#lines) {
+        my @line = split(/:/, $lines[$i]);
+        pop @line while @line > 7;
+        $lines[$i] = join(':', @line);
+      }
     }
     $Files{$source}{$mode}{$gran} = [$class, $sym, $start, $end, \@lines];
   }

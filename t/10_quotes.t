@@ -13,8 +13,8 @@ SKIP: {
   for my $src (sources()) {
     for my $gran (granularities($src)) {
       SKIP: {
-        skip("skip developer $src-$gran test", 2)
-          unless DEV_TESTS || $src eq 'plain';
+        skip("(dev only) $src-$gran test", 2)
+          unless DEV_TESTS || $src eq GOLDEN_CHILD;
         my($m, $sym, $start, $end, $dat) = basis($src, 'quote', $gran);
         next unless $m;
         eval "use $m";
@@ -36,8 +36,8 @@ sub quote_cmp {
   my @rows = $q->quotes;
   cmp_ok(scalar @rows, '==', scalar @$dat, "$label (rows)");
   for my $i (0 .. $#rows) {
-    # drop volume, too variable for testing
-    pop @{$rows[$i]};
+    # drop adjusted quotes, too variable for testing
+    pop @{$rows[$i]} while @{$rows[$i]} > 7;
     $rows[$i] = join(':', @{$rows[$i]});
   }
   is_deeply(\@rows, $dat, "$label (content)");

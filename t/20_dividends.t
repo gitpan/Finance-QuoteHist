@@ -14,8 +14,8 @@ SKIP: {
     SKIP: {
       my($m, $sym, $start, $end, $dat) = basis($src, 'dividend');
       next unless $m;
-      skip("skip developer dividend $src test", 2)
-        unless DEV_TESTS || $src eq 'plain';
+      skip("(dev only) dividend $src test", 2)
+        unless DEV_TESTS || $src eq GOLDEN_CHILD;
       eval "use $m";
       my %parms = ( class => $m );
       dividend_cmp(
