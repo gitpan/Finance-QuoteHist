@@ -1,9 +1,13 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.17  Fri Aug 26 19:31:05 EDT 2011
+    - Updated tests with more recent data
+
 1.16  Thu Sep 30 01:00:27 EDT 2010
     - Fixed tests so that they no longer rely upon historical adjusted
       quotes since these appear to change every now and then whenever
       Yahoo decides to tweak their algorithm.
+    - typo fix
 
 1.14  Mon Jun  7 18:36:30 EDT 2010
     - Fixed several syntax issues that were tripping up -w

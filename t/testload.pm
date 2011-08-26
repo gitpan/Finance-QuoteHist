@@ -90,7 +90,7 @@ sub network_ok {
     my $request = HTTP::Request->new('HEAD', 'http://finance.yahoo.com')
       or die "Problem creating http request object\n";
     my $response = $ua->request($request, @_);
-    $Network_Up = $response->is_success;
+    $Network_Up = $response->is_redirect || $response->is_success;
     if (!$Network_Up) {
       print STDERR "Problem with net fetch: ", $response->status_line, "\n";
     }

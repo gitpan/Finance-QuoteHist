@@ -1006,6 +1006,7 @@ sub html_parser {
     $te_parms{debug} = $self->{debug} if $self->{debug} > 2;
     my $te = $class->new(%te_parms) or croak "Problem creating $class\n";
     $te->parse($html_string);
+    $te->eof;
     my $ts = $te->first_table_found;
     [ $ts ? $ts->rows() : ()];
   }
@@ -1585,7 +1586,7 @@ Matthew P. Sisk, E<lt>F<sisk@mojotoad.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000-2010 Matthew P. Sisk. All rights reserved. All wrongs
+Copyright (c) 2000-2011 Matthew P. Sisk. All rights reserved. All wrongs
 revenged. This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 
