@@ -1,5 +1,9 @@
 Revision history for Perl extension Finance::QuoteHist.
 
+1.18  Mon Aug 29 10:44:57 EDT 2011
+    - fixed test data window (1.17 was a little *too*
+      recent for reliable monthly tests)
+
 1.17  Fri Aug 26 19:31:05 EDT 2011
     - Updated tests with more recent data
 
