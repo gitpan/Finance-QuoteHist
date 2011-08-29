@@ -21,7 +21,9 @@ use HTTP::Request;
 use Date::Manip;
 Date::Manip::Date_Init("TZ=GMT");
 
-$Finance::QuoteHist::Generic::VERSION = $Finance::QuoteHist::VERSION;
+use vars qw($VERSION);
+
+$VERSION = '1.19';
 
 my $CSV_XS_Class = 'Text::CSV_XS';
 my $CSV_PP_Class = 'Text::CSV_PP';
